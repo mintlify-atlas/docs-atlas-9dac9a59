@@ -1,0 +1,757 @@
+---
+title: 'Sensitive Data Exposure'
+description: 'Unencrypted transmission and storage of sensitive information including passwords and personal data'
+icon: 'eye-slash'
+---
+
+<Warning>
+  **Educational Purpose Only** - Exposing sensitive data violates privacy laws and puts users at risk. Always protect user information properly.
+</Warning>
+
+## Overview
+
+Sensitive Data Exposure occurs when applications fail to adequately protect sensitive information such as passwords, credit cards, personal data, or authentication tokens. In this demo, the vulnerable version exposes plaintext passwords, returns unnecessary sensitive fields in queries, and lacks proper data protection mechanisms.
+
+<Card title="Severity Rating" icon="exclamation-triangle">
+  **HIGH to CRITICAL** - CVSS Score: 8.0/10
+  
+  **CWE Reference**: [CWE-200: Exposure of Sensitive Information to an Unauthorized Actor](https://cwe.mitre.org/data/definitions/200.html), [CWE-312: Cleartext Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/312.html)
+</Card>
+
+## Types of Sensitive Data Exposure
+
+<AccordionGroup>
+  <Accordion title="1. Plaintext Password Storage">
+    **Vulnerable Code** (`vulnerable/database.py:32-40`):
+    ```python
+    # VULNERABLE: Plaintext passwords in database
+    cursor.execute("""
+        INSERT INTO users (username, password, email, role) 
+        VALUES (?, ?, ?, ?)
+    """, ('admin', 'admin123', 'admin@test.com', 'admin'))
+    ```
+    
+    **Database Content**:
+    | id | username | password | email |
+    |----|----------|----------|-------|
+    | 1 | admin | admin123 | admin@test.com |
+    | 2 | usuario | password123 | user@test.com |
+    
+    **Impact**:
+    - Database backup = all passwords exposed
+    - SQL injection = password dump
+    - Insider threat = instant access
+    - Password reuse across sites
+  </Accordion>
+  
+  <Accordion title="2. Password in SQL Queries">
+    **Vulnerable Code** (`vulnerable/app.py:26`):
+    ```python
+    # VULNERABLE: Password in SQL query
+    query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+    print(f"Query ejecutada: {query}")  # Logged!
+    ```
+    
+    **Console Output**:
+    ```
+    Query ejecutada: SELECT * FROM users WHERE username = 'admin' AND password = 'admin123'
+    ```
+    
+    **Exposure Vectors**:
+    - Application logs
+    - Database query logs
+    - Monitoring systems
+    - Error messages
+    - Console output
+  </Accordion>
+  
+  <Accordion title="3. Excessive Data in Responses">
+    **Vulnerable Code** (`vulnerable/app.py:101`):
+    ```python
+    # VULNERABLE: Returns ALL fields including password
+    cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+    user = cursor.fetchone()
+    return render_template('profile.html', user=user)
+    ```
+    
+    **Template Receives**:
+    ```python
+    user = {
+        'id': 2,
+        'username': 'usuario',
+        'password': 'password123',  # Plaintext password exposed!
+        'email': 'user@test.com',
+        'role': 'user',
+        'created_at': '2024-03-10'
+    }
+    ```
+    
+    **Risks**:
+    - Password in HTML (view source)
+    - Password in browser memory
+    - Password in template cache
+    - Accidental display in UI
+  </Accordion>
+  
+  <Accordion title="4. Session Data Exposure">
+    **Vulnerable Code** (`vulnerable/app.py:34-36`):
+    ```python
+    # Sensitive data in client-side session
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    session['role'] = user['role']  # Privilege in cookie!
+    ```
+    
+    **Decoded Session Cookie**:
+    ```python
+    import base64
+    import json
+    
+    cookie = "eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIn0"
+    decoded = base64.b64decode(cookie)
+    print(json.loads(decoded))
+    # {'user_id': 1, 'username': 'admin', 'role': 'admin'}
+    ```
+    
+    **With known secret key, attacker can**:
+    - Read all session data
+    - Modify role to escalate privileges
+    - Forge sessions for other users
+  </Accordion>
+  
+  <Accordion title="5. Error Message Disclosure">
+    **Vulnerable Code** (`vulnerable/app.py:67-68`):
+    ```python
+    except sqlite3.Error as e:
+        flash(f'Error al registrar: {str(e)}', 'danger')
+    ```
+    
+    **Example Error Messages**:
+    ```
+    "Error al registrar: UNIQUE constraint failed: users.username"
+    → Reveals: Username 'admin' already exists (user enumeration)
+    
+    "Error SQL: near 'WHERE': syntax error"
+    → Reveals: Database type, SQL structure
+    
+    "Error: /home/user/vulnerable/app.py line 26"
+    → Reveals: File paths, application structure
+    ```
+  </Accordion>
+  
+  <Accordion title="6. URL Parameter Exposure">
+    **Vulnerable Pattern**:
+    ```python
+    # VULNERABLE: Sensitive data in URL
+    return redirect(f'/reset-password?token={reset_token}&email={user.email}')
+    ```
+    
+    **URL**:
+    ```
+    https://site.com/reset-password?token=abc123&email=user@example.com
+    ```
+    
+    **Exposure Risks**:
+    - Browser history
+    - Server logs
+    - Proxy logs
+    - Referer header leaks
+    - Shared links/screenshots
+  </Accordion>
+</AccordionGroup>
+
+## Attack Scenarios
+
+<Steps>
+  <Step title="Scenario 1: Database Backup Theft">
+    **Attack Vector**: Attacker obtains database backup
+    
+    **Vulnerable Database**:
+    ```sql
+    SELECT * FROM users;
+    
+    id | username | password     | email              | role
+    ---|----------|--------------|--------------------|----- 
+    1  | admin    | admin123     | admin@test.com     | admin
+    2  | usuario  | password123  | user@test.com      | user
+    3  | john     | MyP@ssw0rd!  | john@company.com   | user
+    ```
+    
+    **Attacker Actions**:
+    1. Extracts all plaintext passwords instantly
+    2. Tests passwords on user emails (Gmail, corporate, etc.)
+    3. ~65% success rate due to password reuse
+    4. Gains access to external accounts
+    
+    **Impact**: Complete breach across multiple services
+  </Step>
+  
+  <Step title="Scenario 2: SQL Injection Data Exfiltration">
+    **Attack**: Combine SQL injection with data exposure
+    
+    ```python
+    # Exploit the SQLi vulnerability
+    payload = "' UNION SELECT id, username, password, email, role, created_at FROM users --"
+    
+    # Results displayed on screen
+    # All user records with plaintext passwords
+    ```
+    
+    **Via Profile IDOR** (`vulnerable/app.py:101`):
+    ```python
+    # Access any user profile
+    GET /profile?id=1
+    
+    # Response includes password field
+    <div>Password: admin123</div>  # If accidentally rendered
+    ```
+  </Step>
+  
+  <Step title="Scenario 3: Log File Analysis">
+    **Vulnerable Logging** (`vulnerable/app.py:27`):
+    ```python
+    print(f"Query ejecutada: {query}")
+    # Logs: SELECT * FROM users WHERE username = 'admin' AND password = 'Secret123!'
+    ```
+    
+    **Attacker Access to Logs**:
+    - Compromised server
+    - Log aggregation service
+    - Shared hosting environment
+    - Misconfigured log permissions
+    
+    **Result**: Passwords in plaintext in log files
+  </Step>
+  
+  <Step title="Scenario 4: Session Hijacking + Data Access">
+    **Attack Flow**:
+    1. Steal session via XSS: `document.cookie`
+    2. Hijack user session
+    3. Access profile page
+    4. View exposed sensitive data
+    5. Extract additional user information
+    
+    **Amplification**: IDOR allows accessing other users' data too
+  </Step>
+</Steps>
+
+## Secure Implementation
+
+The secure version properly protects sensitive data:
+
+<CodeGroup>
+```python secure/database.py:34-35 (Password Hashing)
+from werkzeug.security import generate_password_hash
+
+# SECURE: Hash passwords before storage
+admin_password = generate_password_hash('admin123')
+user_password = generate_password_hash('password123')
+
+cursor.execute("""
+    INSERT INTO users (username, password, email, role) 
+    VALUES (?, ?, ?, ?)
+""", ('admin', admin_password, 'admin@test.com', 'admin'))
+```
+
+```python secure/app.py:54-63 (Separate Password Verification)
+# SECURE: Password NOT in SQL query
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))
+user = cursor.fetchone()
+
+# SECURE: Hash verification in application
+if user and check_password_hash(user['password'], password):
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    return redirect('/dashboard')
+```
+
+```python secure/app.py:167-169 (Limited Data Exposure)
+# SECURE: Only select necessary fields, NO password
+query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+cursor.execute(query, (requested_id,))
+user = cursor.fetchone()
+```
+
+```python Secure Error Handling
+import logging
+
+# Configure secure logging
+logging.basicConfig(
+    filename='app.log',
+    level=logging.ERROR,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
+
+try:
+    # Database operation
+    cursor.execute(query, params)
+except sqlite3.Error as e:
+    # SECURE: Log detailed error server-side
+    logging.error(f"Database error in {request.endpoint}: {e}")
+    
+    # SECURE: Generic message to user
+    flash('Se produjo un error. Por favor, inténtelo de nuevo.', 'danger')
+```
+
+```python Secure Session Management
+# SECURE: Minimal data in session
+session['user_id'] = user['id']  # Only ID, not role
+
+# SECURE: Server-side session storage
+from flask_session import Session
+import redis
+
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_REDIS'] = redis.from_url('redis://localhost:6379')
+app.config['SESSION_KEY_PREFIX'] = 'session:'
+
+Session(app)
+
+# Now session data stored server-side, not in cookie
+```
+</CodeGroup>
+
+## Data Protection Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Data Classification">
+    **Identify and Classify Data**:
+    
+    | Classification | Examples | Protection Level |
+    |----------------|----------|------------------|
+    | **Public** | Product descriptions, blog posts | None required |
+    | **Internal** | Employee directory, org chart | Access control |
+    | **Confidential** | Email addresses, phone numbers | Encryption at rest |
+    | **Restricted** | Passwords, SSNs, credit cards | Encryption + strict access |
+    
+    **Implementation**:
+    ```python
+    class DataClassification:
+        PUBLIC = 0
+        INTERNAL = 1
+        CONFIDENTIAL = 2
+        RESTRICTED = 3
+    
+    # Mark fields
+    class User(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        username = db.Column(db.String(50), classification=DataClassification.INTERNAL)
+        email = db.Column(db.String(100), classification=DataClassification.CONFIDENTIAL)
+        password_hash = db.Column(db.String(255), classification=DataClassification.RESTRICTED)
+    ```
+  </Accordion>
+  
+  <Accordion title="2. Principle of Least Privilege">
+    **Query Only What You Need**:
+    
+    ```python
+    # Bad: SELECT * returns everything
+    query = "SELECT * FROM users WHERE id = %s"
+    
+    # Good: Explicit field list
+    query = "SELECT id, username, email FROM users WHERE id = %s"
+    
+    # Better: Context-specific views
+    def get_user_for_profile(user_id):
+        return db.execute(
+            "SELECT id, username, email, created_at FROM users WHERE id = %s",
+            (user_id,)
+        ).fetchone()
+    
+    def get_user_for_authentication(username):
+        return db.execute(
+            "SELECT id, username, password_hash, role FROM users WHERE username = %s",
+            (username,)
+        ).fetchone()
+    ```
+  </Accordion>
+  
+  <Accordion title="3. Data Masking and Redaction">
+    **Mask Sensitive Data in Responses**:
+    
+    ```python
+    def mask_email(email):
+        """user@example.com -> u***@example.com"""
+        username, domain = email.split('@')
+        return f"{username[0]}{'*' * (len(username) - 1)}@{domain}"
+    
+    def mask_credit_card(card_number):
+        """1234567890123456 -> ************3456"""
+        return f"{'*' * 12}{card_number[-4:]}"
+    
+    def mask_phone(phone):
+        """555-123-4567 -> XXX-XXX-4567"""
+        return f"XXX-XXX-{phone[-4:]}"
+    
+    # Use in templates
+    @app.template_filter('mask_email')
+    def email_mask_filter(email):
+        return mask_email(email)
+    ```
+    
+    **Template Usage**:
+    ```html
+    <p>Email: {{ user.email|mask_email }}</p>
+    <!-- Displays: u***@example.com -->
+    ```
+  </Accordion>
+  
+  <Accordion title="4. Encryption at Rest">
+    **Encrypt Sensitive Fields**:
+    
+    ```python
+    from cryptography.fernet import Fernet
+    import os
+    
+    # Generate and store encryption key securely
+    ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY').encode()
+    cipher = Fernet(ENCRYPTION_KEY)
+    
+    def encrypt_data(plaintext):
+        """Encrypt sensitive data before storage"""
+        return cipher.encrypt(plaintext.encode()).decode()
+    
+    def decrypt_data(ciphertext):
+        """Decrypt data when needed"""
+        return cipher.decrypt(ciphertext.encode()).decode()
+    
+    # Usage
+    class User(db.Model):
+        ssn_encrypted = db.Column(db.String(255))
+        
+        @property
+        def ssn(self):
+            return decrypt_data(self.ssn_encrypted)
+        
+        @ssn.setter
+        def ssn(self, value):
+            self.ssn_encrypted = encrypt_data(value)
+    ```
+  </Accordion>
+  
+  <Accordion title="5. Secure Logging Practices">
+    **Never Log Sensitive Data**:
+    
+    ```python
+    import logging
+    import re
+    
+    class SensitiveDataFilter(logging.Filter):
+        """Filter to redact sensitive data from logs"""
+        
+        def filter(self, record):
+            # Redact patterns
+            patterns = [
+                (r'password["\']?\s*[:=]\s*["\']?([^"\',\s]+)', 'password=***'),
+                (r'token["\']?\s*[:=]\s*["\']?([^"\',\s]+)', 'token=***'),
+                (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '***@***.com'),
+                (r'\b\d{3}-\d{2}-\d{4}\b', 'XXX-XX-XXXX'),  # SSN
+            ]
+            
+            message = str(record.msg)
+            for pattern, replacement in patterns:
+                message = re.sub(pattern, replacement, message, flags=re.IGNORECASE)
+            
+            record.msg = message
+            return True
+    
+    # Configure logger
+    logger = logging.getLogger(__name__)
+    logger.addFilter(SensitiveDataFilter())
+    
+    # Usage
+    logger.info(f"User login: {username}")  # OK
+    logger.debug(f"Query: {query}")  # Passwords automatically redacted
+    ```
+  </Accordion>
+  
+  <Accordion title="6. HTTPS/TLS Encryption">
+    **Enforce Encrypted Transmission**:
+    
+    ```python
+    from flask import request, redirect
+    
+    @app.before_request
+    def enforce_https():
+        """Redirect HTTP to HTTPS"""
+        if not request.is_secure and not app.debug:
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
+    
+    # SSL/TLS configuration (production server)
+    # nginx.conf
+    """
+    server {
+        listen 443 ssl http2;
+        server_name example.com;
+        
+        # SSL certificate
+        ssl_certificate /etc/ssl/certs/example.com.crt;
+        ssl_certificate_key /etc/ssl/private/example.com.key;
+        
+        # Strong SSL configuration
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+        
+        # HSTS
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    }
+    """
+    ```
+  </Accordion>
+  
+  <Accordion title="7. Data Retention and Deletion">
+    **Implement Data Lifecycle Management**:
+    
+    ```python
+    from datetime import datetime, timedelta
+    
+    class DataRetentionPolicy:
+        # Define retention periods
+        RETENTION_PERIODS = {
+            'session_logs': timedelta(days=30),
+            'login_attempts': timedelta(days=90),
+            'inactive_accounts': timedelta(days=365),
+            'deleted_accounts': timedelta(days=30)  # Grace period
+        }
+        
+        @staticmethod
+        def cleanup_old_data():
+            """Scheduled job to remove old data"""
+            now = datetime.now()
+            
+            # Delete old session logs
+            cutoff = now - DataRetentionPolicy.RETENTION_PERIODS['session_logs']
+            db.execute("DELETE FROM session_logs WHERE created_at < %s", (cutoff,))
+            
+            # Delete inactive accounts
+            cutoff = now - DataRetentionPolicy.RETENTION_PERIODS['inactive_accounts']
+            db.execute(
+                "DELETE FROM users WHERE last_login < %s AND deleted_at IS NULL",
+                (cutoff,)
+            )
+            
+            # Permanently delete accounts after grace period
+            cutoff = now - DataRetentionPolicy.RETENTION_PERIODS['deleted_accounts']
+            db.execute("DELETE FROM users WHERE deleted_at < %s", (cutoff,))
+        
+        @staticmethod
+        def delete_user_data(user_id):
+            """Securely delete all user data (GDPR right to erasure)"""
+            # Soft delete first (grace period)
+            db.execute(
+                "UPDATE users SET deleted_at = %s, email = NULL, password_hash = NULL WHERE id = %s",
+                (datetime.now(), user_id)
+            )
+            
+            # Delete related data
+            db.execute("DELETE FROM user_sessions WHERE user_id = %s", (user_id,))
+            db.execute("DELETE FROM user_logs WHERE user_id = %s", (user_id,))
+    
+    # Schedule cleanup
+    from apscheduler.schedulers.background import BackgroundScheduler
+    
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(DataRetentionPolicy.cleanup_old_data, 'cron', hour=2)  # 2 AM daily
+    scheduler.start()
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Compliance Requirements
+
+<CardGroup cols={2}>
+  <Card title="GDPR" icon="scale-balanced">
+    **Article 32**: Security of processing
+    - Encryption of personal data
+    - Pseudonymization where possible
+    - Regular security testing
+    
+    **Article 17**: Right to erasure
+    - Ability to delete user data
+    - Data retention policies
+    
+    **Penalties**: Up to €20M or 4% of global revenue
+  </Card>
+  
+  <Card title="PCI-DSS" icon="credit-card">
+    **Requirement 3**: Protect stored cardholder data
+    - Minimum data retention
+    - Secure deletion
+    - Strong cryptography
+    
+    **Requirement 4**: Encrypt transmission
+    - TLS for all cardholder data
+    - Strong cryptographic protocols
+    
+    **Penalties**: $5,000-$100,000 per month
+  </Card>
+  
+  <Card title="HIPAA" icon="hospital">
+    **164.312(a)(2)(iv)**: Encryption and decryption
+    - Encrypt ePHI at rest and in transit
+    - Implement access controls
+    - Audit logs
+    
+    **164.316(b)(2)**: Periodic evaluation
+    - Regular security assessments
+    
+    **Penalties**: Up to $1.5M per year per violation category
+  </Card>
+  
+  <Card title="CCPA" icon="landmark">
+    **§ 1798.150**: Data breach liability
+    - $100-$750 per consumer per incident
+    - Reasonable security measures required
+    
+    **§ 1798.105**: Right to deletion
+    - Delete consumer data on request
+  </Card>
+</CardGroup>
+
+## Testing for Data Exposure
+
+<Tabs>
+  <Tab title="Manual Testing">
+    ```bash
+    # 1. Inspect database
+    sqlite3 users.db
+    SELECT * FROM users;
+    # Check if passwords are hashed
+    
+    # 2. Check API responses
+    curl https://target.com/api/user/1 | jq .
+    # Look for password, SSN, tokens in response
+    
+    # 3. Inspect HTML source
+    curl https://target.com/profile | grep -i password
+    # Check if sensitive data in HTML comments or hidden fields
+    
+    # 4. Check browser storage
+    # Open DevTools > Application > Storage
+    # Look for sensitive data in localStorage, sessionStorage, cookies
+    
+    # 5. Monitor network traffic
+    # Use browser DevTools > Network
+    # Check if HTTPS enforced
+    # Look for sensitive data in URLs or headers
+    ```
+  </Tab>
+  
+  <Tab title="Automated Scanning">
+    ```python
+    import requests
+    import json
+    
+    def scan_for_data_exposure(base_url, session_cookie):
+        """Scan for sensitive data exposure"""
+        findings = []
+        
+        # Test user profile endpoint
+        headers = {'Cookie': f'session={session_cookie}'}
+        r = requests.get(f'{base_url}/profile', headers=headers)
+        
+        # Check for sensitive keywords in response
+        sensitive_fields = ['password', 'ssn', 'credit_card', 'token', 'secret']
+        for field in sensitive_fields:
+            if field in r.text.lower():
+                findings.append(f'Potential {field} exposure in profile page')
+        
+        # Test if password returned in API
+        r = requests.get(f'{base_url}/api/user/me', headers=headers)
+        try:
+            data = r.json()
+            if 'password' in data:
+                findings.append('CRITICAL: Password field in API response')
+        except:
+            pass
+        
+        # Check for HTTPS enforcement
+        r = requests.get(base_url.replace('https://', 'http://'), allow_redirects=False)
+        if r.status_code != 301:
+            findings.append('HTTP not redirected to HTTPS')
+        
+        return findings
+    ```
+  </Tab>
+  
+  <Tab title="Log Analysis">
+    ```python
+    import re
+    
+    def scan_logs_for_sensitive_data(log_file):
+        """Scan application logs for accidentally logged sensitive data"""
+        patterns = {
+            'passwords': r'password["\']?\s*[:=]\s*["\']?([^"\',\s]+)',
+            'emails': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+            'ssn': r'\b\d{3}-\d{2}-\d{4}\b',
+            'credit_card': r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b',
+            'api_keys': r'[A-Za-z0-9]{32,}',
+        }
+        
+        findings = {key: [] for key in patterns}
+        
+        with open(log_file, 'r') as f:
+            for line_num, line in enumerate(f, 1):
+                for data_type, pattern in patterns.items():
+                    if re.search(pattern, line):
+                        findings[data_type].append({
+                            'line': line_num,
+                            'content': line.strip()[:100]
+                        })
+        
+        return findings
+    ```
+  </Tab>
+</Tabs>
+
+## Incident Response
+
+If sensitive data is exposed:
+
+<Steps>
+  <Step title="Immediate Actions">
+    1. **Contain the breach**: Disable affected systems
+    2. **Assess scope**: How many records? What data?
+    3. **Preserve evidence**: Backup logs, snapshots
+    4. **Notify team**: Security, legal, management
+  </Step>
+  
+  <Step title="Remediation">
+    1. **Patch vulnerability**: Fix the code/config issue
+    2. **Rotate credentials**: Change all exposed passwords, keys
+    3. **Revoke sessions**: Invalidate all user sessions
+    4. **Monitor**: Watch for unauthorized access
+  </Step>
+  
+  <Step title="Notification" >
+    1. **Users**: Email affected users within 72 hours (GDPR)
+    2. **Regulators**: Report to relevant authorities
+    3. **Public**: Transparency (if required by law)
+    4. **Documentation**: Detailed incident report
+  </Step>
+  
+  <Step title="Post-Incident">
+    1. **Root cause analysis**: Why did this happen?
+    2. **Update policies**: Improve security practices
+    3. **Training**: Educate development team
+    4. **Monitoring**: Implement detection for similar issues
+  </Step>
+</Steps>
+
+## References
+
+- [OWASP Top 10 - A02:2021 Cryptographic Failures](https://owasp.org/Top10/A02_2021-Cryptographic_Failures/)
+- [CWE-200: Exposure of Sensitive Information](https://cwe.mitre.org/data/definitions/200.html)
+- [CWE-312: Cleartext Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/312.html)
+- [NIST SP 800-122: Guide to Protecting PII](https://csrc.nist.gov/publications/detail/sp/800-122/final)
+- [OWASP Sensitive Data Exposure](https://owasp.org/www-community/vulnerabilities/Information_exposure)
+
+<Card title="Next Steps" icon="arrow-right">
+  Related security topics:
+  - [Password Storage](/vulnerabilities/password-storage) - Proper password hashing
+  - [SQL Injection](/vulnerabilities/sql-injection) - Can lead to data extraction
+  - [Security Misconfiguration](/vulnerabilities/security-misconfiguration) - HTTPS enforcement
+</Card>

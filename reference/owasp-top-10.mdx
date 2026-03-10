@@ -1,0 +1,297 @@
+---
+title: 'OWASP Top 10 Coverage'
+description: 'How this project maps to the OWASP Top 10 2021 security risks'
+icon: 'shield-halved'
+---
+
+## Overview
+
+The OWASP Top 10 is a standard awareness document representing a broad consensus about the most critical security risks to web applications. This project demonstrates several vulnerabilities from the OWASP Top 10 2021 list.
+
+<CardGroup cols={2}>
+  <Card title="Vulnerabilities Demonstrated" icon="bug" color="#ea5a0c">
+    5 OWASP categories covered with practical examples
+  </Card>
+  <Card title="Security Fixes Shown" icon="shield-check" color="#16a34a">
+    Complete mitigation strategies for each vulnerability
+  </Card>
+</CardGroup>
+
+## OWASP Top 10 2021 Mapping
+
+### A01:2021 - Broken Access Control
+
+<Accordion title="Coverage in This Project">
+  **Vulnerabilities Demonstrated:**
+  
+  - **Insecure Direct Object Reference (IDOR)** - `vulnerable/app.py:95-110`
+    - Users can access other users' profiles by manipulating the `id` parameter
+    - No authorization checks before displaying sensitive data
+  
+  - **Missing Function Level Access Control**
+    - Insufficient role-based access controls
+    - Weak session validation
+  
+  **Security Impact:**
+  - Unauthorized information disclosure
+  - Access to other users' personal data
+  - Potential privilege escalation
+  
+  **Mitigation Applied:**
+  - Authorization checks in `secure/app.py:146-158`
+  - User can only view their own profile unless admin role
+  - Proper session validation on all protected routes
+</Accordion>
+
+**Severity:** Critical  
+**CVSS Score:** 8.2  
+**Affected Code:** Profile view endpoint
+
+---
+
+### A02:2021 - Cryptographic Failures
+
+<Accordion title="Coverage in This Project">
+  **Vulnerabilities Demonstrated:**
+  
+  - **Plaintext Password Storage** - `vulnerable/app.py:26`
+    - Passwords stored in database without any encryption
+    - Direct string comparison in SQL queries
+    - Credentials visible in database dumps
+  
+  - **Sensitive Data Exposure**
+    - Password field returned in user queries
+    - SQL errors expose database structure
+    - Session secrets hardcoded in source
+  
+  **Security Impact:**
+  - Complete compromise if database is breached
+  - User credentials stolen and reused on other sites
+  - Compliance violations (GDPR, PCI-DSS)
+  
+  **Mitigation Applied:**
+  - Werkzeug password hashing (bcrypt) in `secure/app.py:104`
+  - Environment-based secret key management
+  - Password field excluded from SELECT queries
+  - Secure session configuration
+</Accordion>
+
+**Severity:** Critical  
+**CVSS Score:** 9.1  
+**Affected Code:** Login and registration functions
+
+---
+
+### A03:2021 - Injection
+
+<Accordion title="Coverage in This Project">
+  **Vulnerabilities Demonstrated:**
+  
+  - **SQL Injection** - `vulnerable/app.py:26`
+    - User input directly concatenated into SQL queries
+    - No input validation or sanitization
+    - Authentication bypass via SQL manipulation
+  
+  **Attack Vectors Shown:**
+  ```sql
+  -- Authentication Bypass
+  admin' OR '1'='1
+  
+  -- Comment Injection
+  admin'-- 
+  
+  -- Union-based Injection
+  ' OR 1=1 --
+  ```
+  
+  **Security Impact:**
+  - Complete authentication bypass
+  - Unauthorized data access
+  - Potential data modification or deletion
+  - Database structure disclosure
+  
+  **Mitigation Applied:**
+  - Parameterized queries (prepared statements) in `secure/app.py:55-56`
+  - Input validation and length limits
+  - Proper error handling without information disclosure
+</Accordion>
+
+**Severity:** Critical  
+**CVSS Score:** 9.8  
+**Affected Code:** Login, profile, and registration endpoints
+
+---
+
+### A04:2021 - Insecure Design
+
+<Accordion title="Coverage in This Project">
+  **Vulnerabilities Demonstrated:**
+  
+  - **Security Misconfiguration**
+    - Debug mode enabled in production
+    - Hardcoded secret keys
+    - Missing security headers
+  
+  - **Lack of Security Architecture**
+    - No input validation framework
+    - Missing rate limiting
+    - No logging or monitoring
+  
+  **Security Impact:**
+  - Information disclosure through debug errors
+  - Session hijacking via predictable keys
+  - Missing defense-in-depth layers
+  
+  **Mitigation Applied:**
+  - Security headers middleware in `secure/app.py:19-26`
+  - Environment-based configuration
+  - CSRF protection with Flask-WTF
+  - Proper error handling
+</Accordion>
+
+**Severity:** Medium  
+**CVSS Score:** 6.5  
+**Affected Code:** Application configuration
+
+---
+
+### A07:2021 - Identification and Authentication Failures
+
+<Accordion title="Coverage in This Project">
+  **Vulnerabilities Demonstrated:**
+  
+  - **Insecure Session Management**
+    - Weak session configuration
+    - No session timeout
+    - Session tokens not rotated
+  
+  - **Weak Authentication**
+    - No password complexity requirements
+    - No account lockout mechanism
+    - Predictable session identifiers
+  
+  **Security Impact:**
+  - Session hijacking
+  - Credential stuffing attacks
+  - Brute force attacks
+  
+  **Mitigation Applied:**
+  - Secure session configuration in `secure/app.py:67`
+  - Password length validation
+  - Proper session cleanup on logout
+  - Input sanitization and trimming
+</Accordion>
+
+**Severity:** High  
+**CVSS Score:** 7.5  
+**Affected Code:** Session and authentication logic
+
+---
+
+### A03:2021 - Cross-Site Scripting (XSS)
+
+<Accordion title="Coverage in This Project">
+  **Vulnerabilities Demonstrated:**
+  
+  - **Reflected XSS** - `vulnerable/app.py:82-86`
+    - User input from URL parameters rendered without sanitization
+    - JavaScript code executed in victim's browser
+    - No Content Security Policy
+  
+  **Attack Vectors Shown:**
+  ```html
+  <!-- Alert Box -->
+  <script>alert('XSS')</script>
+  
+  <!-- Cookie Theft -->
+  <script>alert(document.cookie)</script>
+  
+  <!-- DOM Manipulation -->
+  <script>document.body.innerHTML='HACKED'</script>
+  
+  <!-- Event Handler -->
+  <img src=x onerror="alert('XSS')">
+  ```
+  
+  **Security Impact:**
+  - Session token theft
+  - Phishing attacks
+  - Keylogging
+  - Website defacement
+  
+  **Mitigation Applied:**
+  - Output escaping with MarkupSafe in `secure/app.py:136`
+  - Content Security Policy headers
+  - Input validation and sanitization
+  - Auto-escaping in Jinja2 templates
+</Accordion>
+
+**Severity:** High  
+**CVSS Score:** 7.5  
+**Affected Code:** Dashboard message display
+
+---
+
+## Not Covered in This Project
+
+The following OWASP Top 10 2021 categories are **not demonstrated** in this educational project:
+
+<CardGroup cols={2}>
+  <Card title="A05:2021" icon="gear">
+    **Security Misconfiguration** - Partially covered through examples but not comprehensively demonstrated
+  </Card>
+  <Card title="A06:2021" icon="code">
+    **Vulnerable and Outdated Components** - Not applicable to this minimal demo
+  </Card>
+  <Card title="A08:2021" icon="bug">
+    **Software and Data Integrity Failures** - Outside scope of authentication demo
+  </Card>
+  <Card title="A09:2021" icon="triangle-exclamation">
+    **Security Logging and Monitoring Failures** - Not implemented in basic demo
+  </Card>
+  <Card title="A10:2021" icon="server">
+    **Server-Side Request Forgery (SSRF)** - Not applicable to current functionality
+  </Card>
+</CardGroup>
+
+---
+
+## Risk Severity Summary
+
+| OWASP Category | Project Coverage | Severity | Mitigation Status |
+|----------------|------------------|----------|-------------------|
+| A01 - Broken Access Control | IDOR, Missing Authorization | Critical | ✅ Fixed |
+| A02 - Cryptographic Failures | Plaintext Passwords | Critical | ✅ Fixed |
+| A03 - Injection | SQL Injection | Critical | ✅ Fixed |
+| A03 - XSS | Reflected XSS | High | ✅ Fixed |
+| A04 - Insecure Design | Security Misconfiguration | Medium | ✅ Fixed |
+| A07 - Auth Failures | Insecure Sessions | High | ✅ Fixed |
+
+---
+
+## Learning Objectives
+
+<CardGroup cols={1}>
+  <Card title="Understanding Real-World Risks" icon="graduation-cap">
+    See how OWASP Top 10 vulnerabilities manifest in actual code and how attackers exploit them
+  </Card>
+  <Card title="Implementing Security Controls" icon="lock">
+    Learn practical mitigation techniques that address OWASP recommendations
+  </Card>
+  <Card title="Secure Development Practices" icon="code-branch">
+    Adopt security-first coding patterns that prevent common vulnerabilities
+  </Card>
+</CardGroup>
+
+---
+
+## External Resources
+
+- [OWASP Top 10 2021 Official Document](https://owasp.org/Top10/)
+- [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
+- [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
+- [OWASP Application Security Verification Standard (ASVS)](https://owasp.org/www-project-application-security-verification-standard/)
+
+<Note>
+  This project is designed for **educational purposes only**. Always test security controls in authorized environments.
+</Note>

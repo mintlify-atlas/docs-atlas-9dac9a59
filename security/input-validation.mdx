@@ -1,0 +1,322 @@
+---
+title: Input Validation
+description: Validate and sanitize user input to prevent injection attacks
+icon: filter
+---
+
+## Overview
+
+Input validation is your first line of defense against many security vulnerabilities. This guide shows how to properly validate and sanitize user input based on the secure implementation.
+
+## Why Input Validation Matters
+
+<CardGroup cols={2}>
+  <Card title="Prevent SQL Injection" icon="database">
+    Validate input before database queries to prevent malicious SQL execution.
+  </Card>
+  
+  <Card title="Prevent XSS" icon="code">
+    Sanitize input to prevent malicious scripts from being stored or executed.
+  </Card>
+  
+  <Card title="Data Integrity" icon="check">
+    Ensure data meets expected format and business rules.
+  </Card>
+  
+  <Card title="Prevent DoS" icon="shield">
+    Limit input size to prevent resource exhaustion attacks.
+  </Card>
+</CardGroup>
+
+## Server-Side Validation
+
+<Note>
+  Never rely on client-side validation alone. Always validate on the server.
+</Note>
+
+### Basic Input Validation
+
+Validate all user input before processing:
+
+```python secure/app.py
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        # Check for required fields
+        if not username or not password:
+            flash('Usuario y contraseña son requeridos', 'danger')
+            return render_template('login.html')
+        
+        # Validate length to prevent DoS
+        if len(username) > 50:
+            flash('Usuario inválido', 'danger')
+            return render_template('login.html')
+```
+
+<Steps>
+  <Step title="Extract and sanitize input">
+    Get input from request and strip whitespace:
+    
+    ```python
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    email = request.form.get('email', '').strip()
+    ```
+  </Step>
+  
+  <Step title="Check required fields">
+    Verify all required data is present:
+    
+    ```python
+    if not username or not password or not email:
+        flash('Todos los campos son requeridos', 'danger')
+        return render_template('register.html')
+    ```
+  </Step>
+  
+  <Step title="Validate format and length">
+    Ensure input meets expected criteria:
+    
+    ```python
+    if len(username) < 3 or len(username) > 50:
+        flash('El usuario debe tener entre 3 y 50 caracteres', 'danger')
+        return render_template('register.html')
+    
+    if len(password) < 6:
+        flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+        return render_template('register.html')
+    ```
+  </Step>
+</Steps>
+
+## Registration Validation Example
+
+Comprehensive validation during user registration:
+
+```python secure/app.py
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        email = request.form.get('email', '').strip()
+        
+        # Required field validation
+        if not username or not password or not email:
+            flash('Todos los campos son requeridos', 'danger')
+            return render_template('register.html')
+        
+        # Length validation
+        if len(username) < 3 or len(username) > 50:
+            flash('El usuario debe tener entre 3 y 50 caracteres', 'danger')
+            return render_template('register.html')
+        
+        # Password strength validation
+        if len(password) < 6:
+            flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+            return render_template('register.html')
+```
+
+## Type Validation
+
+Validate data types to prevent type confusion attacks:
+
+```python secure/app.py
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    requested_id = request.args.get('id', session['user_id'])
+    
+    # Type validation: ensure ID is an integer
+    try:
+        requested_id = int(requested_id)
+    except ValueError:
+        flash('ID inválido', 'danger')
+        return redirect('/dashboard')
+```
+
+<Tip>
+  Always validate and convert user input to expected types before using them in queries or business logic.
+</Tip>
+
+## SQL Injection Prevention
+
+### Use Parameterized Queries
+
+Always use parameterized queries (prepared statements) instead of string concatenation:
+
+<CardGroup cols={2}>
+  <Card title="Secure" icon="check" color="#10b981">
+    ```python
+    # SECURE: Parameterized query
+    query = "SELECT * FROM users WHERE username = %s"
+    cursor.execute(query, (username,))
+    ```
+  </Card>
+  
+  <Card title="Insecure" icon="xmark" color="#ef4444">
+    ```python
+    # INSECURE: String concatenation
+    query = f"SELECT * FROM users WHERE username = '{username}'"
+    cursor.execute(query)
+    ```
+  </Card>
+</CardGroup>
+
+### Prepared Statements in Action
+
+```python secure/app.py
+# Login query with parameterized statement
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))
+user = cursor.fetchone()
+
+# Registration query with parameterized statement
+query = "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)"
+cursor.execute(query, (username, hashed_password, email))
+
+# Profile query with parameterized statement
+query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+cursor.execute(query, (requested_id,))
+user = cursor.fetchone()
+```
+
+<Info>
+  Parameterized queries prevent SQL injection by treating user input as data, not executable SQL code.
+</Info>
+
+## Input Sanitization Checklist
+
+<Steps>
+  <Step title="Strip whitespace">
+    Remove leading/trailing spaces from string inputs:
+    ```python
+    username = request.form.get('username', '').strip()
+    ```
+  </Step>
+  
+  <Step title="Validate presence">
+    Check that required fields are not empty:
+    ```python
+    if not username or not password:
+        return error_response('Required fields missing')
+    ```
+  </Step>
+  
+  <Step title="Validate length">
+    Enforce minimum and maximum lengths:
+    ```python
+    if len(username) < 3 or len(username) > 50:
+        return error_response('Invalid length')
+    ```
+  </Step>
+  
+  <Step title="Validate type">
+    Convert and validate data types:
+    ```python
+    try:
+        user_id = int(request.args.get('id'))
+    except ValueError:
+        return error_response('Invalid type')
+    ```
+  </Step>
+  
+  <Step title="Validate format">
+    Check format using regex for emails, phone numbers, etc.:
+    ```python
+    import re
+    if not re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email):
+        return error_response('Invalid email format')
+    ```
+  </Step>
+</Steps>
+
+## Client-Side Validation
+
+While server-side validation is mandatory, client-side validation improves user experience:
+
+```html secure/templates/login.html
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    <div class="form-group">
+        <label>Usuario:</label>
+        <input type="text" name="username" required maxlength="50">
+    </div>
+    <div class="form-group">
+        <label>Contraseña:</label>
+        <input type="password" name="password" required>
+    </div>
+    <button type="submit">Entrar</button>
+</form>
+```
+
+<Note>
+  HTML5 attributes like `required` and `maxlength` provide basic client-side validation, but attackers can bypass these easily. Always validate server-side.
+</Note>
+
+## Whitelist vs Blacklist
+
+<CardGroup cols={2}>
+  <Card title="Whitelist Approach" icon="check" color="#10b981">
+    **Recommended**: Define what is allowed
+    
+    ```python
+    # Only allow alphanumeric and underscore
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return error('Invalid characters')
+    ```
+  </Card>
+  
+  <Card title="Blacklist Approach" icon="xmark" color="#ef4444">
+    **Not Recommended**: Define what is blocked
+    
+    ```python
+    # Trying to block dangerous characters
+    if any(c in username for c in ["'", '"', ';']):
+        return error('Invalid characters')
+    ```
+  </Card>
+</CardGroup>
+
+<Tip>
+  Whitelisting is more secure because you explicitly define acceptable input, making it harder for attackers to find loopholes.
+</Tip>
+
+## Error Handling
+
+Handle validation errors gracefully without exposing sensitive information:
+
+```python secure/app.py
+try:
+    query = "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)"
+    cursor.execute(query, (username, hashed_password, email))
+    connection.commit()
+    flash('Usuario registrado exitosamente!', 'success')
+except sqlite3.IntegrityError:
+    flash('El usuario ya existe', 'danger')
+except Exception as e:
+    flash('Error al registrar usuario', 'danger')
+    print(f"Error: {e}")  # Log detailed error server-side only
+```
+
+<Info>
+  Log detailed error information server-side, but show generic error messages to users to avoid information disclosure.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Output Encoding" icon="shield" href="/security/output-encoding">
+    Learn how to safely display user input to prevent XSS
+  </Card>
+  
+  <Card title="CSRF Protection" icon="lock" href="/security/secure-authentication">
+    Protect your forms from Cross-Site Request Forgery
+  </Card>
+</CardGroup>

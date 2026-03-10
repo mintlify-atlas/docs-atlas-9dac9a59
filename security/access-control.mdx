@@ -1,0 +1,460 @@
+---
+title: Access Control
+description: Implement proper authorization and prevent unauthorized access
+icon: lock
+---
+
+## Overview
+
+Access control ensures users can only access resources they're authorized to view or modify. This guide demonstrates authorization best practices based on the secure implementation.
+
+## Authentication vs Authorization
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="user-check">
+    **Who are you?**
+    
+    Verifying user identity through credentials (login).
+  </Card>
+  
+  <Card title="Authorization" icon="lock">
+    **What can you do?**
+    
+    Determining what resources and actions a user can access.
+  </Card>
+</CardGroup>
+
+<Note>
+  Authentication confirms identity; authorization controls access. Both are required for secure applications.
+</Note>
+
+## Route Protection
+
+### Basic Authentication Check
+
+Always verify user authentication before allowing access to protected resources:
+
+```python secure/app.py
+@app.route('/dashboard')
+def dashboard():
+    # Check if user is authenticated
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         role=session.get('role'))
+```
+
+<Steps>
+  <Step title="Check session">
+    Verify the user has an active session:
+    ```python
+    if 'user_id' not in session:
+        return redirect('/login')
+    ```
+  </Step>
+  
+  <Step title="Redirect if unauthorized">
+    Send unauthenticated users to login:
+    ```python
+    flash('Debes iniciar sesión', 'warning')
+    return redirect('/login')
+    ```
+  </Step>
+  
+  <Step title="Process authorized request">
+    Allow authenticated users to proceed:
+    ```python
+    return render_template('dashboard.html')
+    ```
+  </Step>
+</Steps>
+
+## Preventing IDOR Attacks
+
+Insecure Direct Object Reference (IDOR) occurs when attackers access resources by manipulating IDs. Always validate ownership.
+
+### IDOR Prevention Example
+
+```python secure/app.py
+@app.route('/profile')
+def profile():
+    # Check authentication
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    # Get requested user ID
+    requested_id = request.args.get('id', session['user_id'])
+    
+    # Validate type
+    try:
+        requested_id = int(requested_id)
+    except ValueError:
+        flash('ID inválido', 'danger')
+        return redirect('/dashboard')
+    
+    # Authorization check: Only allow viewing own profile
+    # Unless user is an admin
+    if requested_id != session['user_id'] and session.get('role') != 'admin':
+        flash('No tienes permiso para ver este perfil', 'danger')
+        return redirect('/dashboard')
+    
+    # User is authorized, fetch profile
+    connection = create_connection()
+    cursor = connection.cursor()
+    
+    query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+    cursor.execute(query, (requested_id,))
+    user = cursor.fetchone()
+    
+    return render_template('profile.html', user=user)
+```
+
+<Info>
+  This implementation prevents users from viewing other users' profiles by modifying the `?id=` parameter, unless they have admin role.
+</Info>
+
+### IDOR Protection Steps
+
+<Steps>
+  <Step title="Validate input type">
+    Ensure the ID is valid:
+    ```python
+    try:
+        requested_id = int(request.args.get('id'))
+    except ValueError:
+        return error_response('Invalid ID')
+    ```
+  </Step>
+  
+  <Step title="Check ownership or permissions">
+    Verify user owns the resource or has admin rights:
+    ```python
+    if requested_id != session['user_id'] and session.get('role') != 'admin':
+        return error_response('Unauthorized')
+    ```
+  </Step>
+  
+  <Step title="Fetch with user context">
+    Query with ownership validation:
+    ```python
+    query = "SELECT * FROM resources WHERE id = %s AND user_id = %s"
+    cursor.execute(query, (resource_id, session['user_id']))
+    ```
+  </Step>
+</Steps>
+
+## Role-Based Access Control (RBAC)
+
+### Defining Roles
+
+Store user roles in the database and session:
+
+```python secure/database.py
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        email TEXT,
+        role TEXT DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+```
+
+```python secure/app.py
+# Store role in session during login
+if user and check_password_hash(user['password'], password):
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    session['role'] = user['role']  # Store role
+```
+
+### Role-Based Authorization
+
+```python
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login', 'warning')
+            return redirect('/login')
+        
+        if session.get('role') != 'admin':
+            flash('Admin access required', 'danger')
+            return redirect('/dashboard')
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    # Only admins can access this route
+    return render_template('admin_users.html')
+```
+
+<CardGroup cols={2}>
+  <Card title="User Role" icon="user">
+    - View own profile
+    - Edit own data
+    - Access user dashboard
+  </Card>
+  
+  <Card title="Admin Role" icon="user-shield">
+    - View all profiles
+    - Edit any user data
+    - Access admin panel
+    - Manage system settings
+  </Card>
+</CardGroup>
+
+## Session-Based Authorization
+
+### Storing Authorization Data
+
+```python secure/app.py
+# During login, store minimal necessary data
+session['user_id'] = user['id']
+session['username'] = user['username']
+session['role'] = user['role']
+session.permanent = True
+```
+
+<Note>
+  Only store essential authorization data in sessions. Never store passwords or sensitive information.
+</Note>
+
+### Checking Authorization
+
+```python secure/app.py
+@app.route('/profile')
+def profile():
+    # Authentication check
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    requested_id = request.args.get('id', session['user_id'])
+    
+    # Authorization check based on role
+    if requested_id != session['user_id'] and session.get('role') != 'admin':
+        flash('No tienes permiso para ver este perfil', 'danger')
+        return redirect('/dashboard')
+```
+
+## Sensitive Data Protection
+
+### Never Return Sensitive Fields
+
+Exclude sensitive data from queries and responses:
+
+```python secure/app.py
+# SECURE: Exclude password from SELECT
+query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+cursor.execute(query, (requested_id,))
+user = cursor.fetchone()
+```
+
+<CardGroup cols={2}>
+  <Card title="Include" icon="check" color="#10b981">
+    - User ID
+    - Username
+    - Email
+    - Role
+    - Creation date
+  </Card>
+  
+  <Card title="Exclude" icon="xmark" color="#ef4444">
+    - Password (hashed or not)
+    - Password reset tokens
+    - API keys
+    - Secret keys
+    - Internal identifiers
+  </Card>
+</CardGroup>
+
+## Authorization Best Practices
+
+<Steps>
+  <Step title="Verify authentication first">
+    Always check if user is logged in before checking permissions:
+    ```python
+    if 'user_id' not in session:
+        return redirect('/login')
+    ```
+  </Step>
+  
+  <Step title="Validate resource ownership">
+    Check if user owns the resource they're trying to access:
+    ```python
+    if resource.user_id != session['user_id']:
+        return abort(403)
+    ```
+  </Step>
+  
+  <Step title="Check role permissions">
+    Verify user role has required permissions:
+    ```python
+    if session.get('role') not in ['admin', 'moderator']:
+        return abort(403)
+    ```
+  </Step>
+  
+  <Step title="Use deny-by-default">
+    Explicitly grant access rather than blocking access:
+    ```python
+    # Good: Explicitly allow
+    if user_has_permission:
+        return resource
+    return abort(403)
+    ```
+  </Step>
+</Steps>
+
+## Common Authorization Patterns
+
+### Pattern 1: Own Resource Only
+
+```python
+@app.route('/edit-post/<int:post_id>')
+def edit_post(post_id):
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    # Fetch post with ownership check
+    query = "SELECT * FROM posts WHERE id = %s AND user_id = %s"
+    cursor.execute(query, (post_id, session['user_id']))
+    post = cursor.fetchone()
+    
+    if not post:
+        flash('Post not found or unauthorized', 'danger')
+        return redirect('/dashboard')
+    
+    return render_template('edit_post.html', post=post)
+```
+
+### Pattern 2: Own Resource or Admin
+
+```python
+@app.route('/delete-post/<int:post_id>')
+def delete_post(post_id):
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    cursor.execute("SELECT * FROM posts WHERE id = %s", (post_id,))
+    post = cursor.fetchone()
+    
+    # Allow if owner or admin
+    if post['user_id'] != session['user_id'] and session.get('role') != 'admin':
+        return abort(403)
+    
+    cursor.execute("DELETE FROM posts WHERE id = %s", (post_id,))
+    return redirect('/posts')
+```
+
+### Pattern 3: Role-Based
+
+```python
+@app.route('/admin/settings')
+def admin_settings():
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    if session.get('role') != 'admin':
+        flash('Admin access required', 'danger')
+        return redirect('/dashboard')
+    
+    return render_template('admin_settings.html')
+```
+
+## Database-Level Security
+
+Enforce authorization at the database level when possible:
+
+```sql
+-- Always include user_id in WHERE clause for user resources
+SELECT * FROM posts WHERE id = ? AND user_id = ?
+
+-- Use database constraints
+CREATE TABLE posts (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    content TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
+
+<Tip>
+  Adding user_id to WHERE clauses ensures users can only access their own data, even if application-level checks fail.
+</Tip>
+
+## Testing Authorization
+
+Test authorization logic thoroughly:
+
+```python
+def test_idor_protection():
+    # Login as user 1
+    client.post('/login', data={'username': 'user1', 'password': 'pass'})
+    
+    # Try to access user 2's profile
+    response = client.get('/profile?id=2')
+    
+    # Should be denied
+    assert response.status_code == 302  # Redirect
+    assert b'No tienes permiso' in response.data
+
+def test_admin_access():
+    # Login as regular user
+    client.post('/login', data={'username': 'user', 'password': 'pass'})
+    
+    # Try to access admin page
+    response = client.get('/admin/users')
+    
+    # Should be denied
+    assert response.status_code == 403
+```
+
+## Authorization Checklist
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="user-check">
+    - Verify user is logged in
+    - Check session is valid
+    - Ensure session not expired
+  </Card>
+  
+  <Card title="Ownership" icon="key">
+    - Validate resource belongs to user
+    - Check user_id matches
+    - Include ownership in queries
+  </Card>
+  
+  <Card title="Role Permissions" icon="shield">
+    - Verify user has required role
+    - Check specific permissions
+    - Use role-based decorators
+  </Card>
+  
+  <Card title="Data Protection" icon="eye-slash">
+    - Exclude sensitive fields
+    - Don't return passwords
+    - Limit data exposure
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Secure Authentication" icon="shield-check" href="/security/secure-authentication">
+    Learn about secure login and session management
+  </Card>
+  
+  <Card title="Security Headers" icon="helmet-safety" href="/security/security-headers">
+    Configure security headers for defense in depth
+  </Card>
+</CardGroup>

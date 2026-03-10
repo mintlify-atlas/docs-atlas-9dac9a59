@@ -1,0 +1,828 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for the Auth Security Demo
+icon: wrench
+---
+
+## Overview
+
+This guide addresses common problems you might encounter while setting up, running, or testing the Auth Security Demo applications.
+
+<Info>
+  If you encounter an issue not covered here, please check the [GitHub Issues](https://github.com/your-repo/auth-security-demo/issues) or create a new one.
+</Info>
+
+---
+
+## Installation Issues
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'flask'">
+    **Problem:** Flask is not installed or not found in the Python path.
+
+    **Solution:**
+
+    ```bash
+    # Verify pip is working
+    python3 -m pip --version
+    
+    # Install Flask explicitly
+    python3 -m pip install Flask==3.0.0
+    
+    # Or reinstall all dependencies
+    python3 -m pip install -r requirements.txt
+    ```
+
+    **Alternative:** Use a virtual environment:
+
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate  # Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied when installing packages">
+    **Problem:** Insufficient permissions to install Python packages system-wide.
+
+    **Solution 1 - User installation:**
+    ```bash
+    python3 -m pip install --user -r requirements.txt
+    ```
+
+    **Solution 2 - Virtual environment (recommended):**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+    **Solution 3 - Use sudo (not recommended):**
+    ```bash
+    sudo pip install -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="Python version not supported">
+    **Problem:** Python 3.10 or older detected.
+
+    **Error message:**
+    ```
+    ERROR: Python 3.10 is not supported
+    ```
+
+    **Solution:**
+
+    **Ubuntu/Debian:**
+    ```bash
+    sudo apt update
+    sudo apt install python3.13 python3.13-venv python3-pip
+    python3.13 -m venv venv
+    source venv/bin/activate
+    ```
+
+    **macOS (Homebrew):**
+    ```bash
+    brew install python@3.13
+    python3.13 -m venv venv
+    source venv/bin/activate
+    ```
+
+    **Windows:**
+    Download Python 3.13 from [python.org](https://www.python.org/downloads/)
+  </Accordion>
+
+  <Accordion title="SSL certificate verification failed">
+    **Problem:** pip cannot download packages due to SSL errors.
+
+    **Error message:**
+    ```
+    SSL: CERTIFICATE_VERIFY_FAILED
+    ```
+
+    **Solution 1 - Upgrade certificates:**
+    ```bash
+    python3 -m pip install --upgrade certifi
+    ```
+
+    **Solution 2 - Use trusted host (temporary):**
+    ```bash
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
+    ```
+
+    <Warning>
+      The trusted host method bypasses security. Only use in controlled environments.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Database Issues
+
+<AccordionGroup>
+  <Accordion title="Database file not found or not created">
+    **Problem:** `users.db` is missing after running `database.py`.
+
+    **Solution:**
+
+    <Steps>
+      <Step title="Check current directory">
+        ```bash
+        pwd  # Ensure you're in vulnerable/ or secure/
+        ls -la users.db  # Check if file exists
+        ```
+      </Step>
+
+      <Step title="Verify write permissions">
+        ```bash
+        # Check directory permissions
+        ls -ld .
+        
+        # Should show write permission (drwxr-xr-x or similar)
+        # If not, fix permissions:
+        chmod 755 .
+        ```
+      </Step>
+
+      <Step title="Recreate database">
+        ```bash
+        # Delete old database if it exists
+        rm -f users.db
+        
+        # Run database setup
+        python3 database.py
+        
+        # Verify creation
+        ls -lh users.db
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="sqlite3.OperationalError: table users already exists">
+    **Problem:** Database table already exists when trying to recreate.
+
+    **Solution:**
+
+    ```bash
+    # Option 1: Delete and recreate database
+    rm users.db
+    python3 database.py
+    
+    # Option 2: Keep existing database
+    # The script uses CREATE TABLE IF NOT EXISTS, so this error shouldn't occur
+    # If it does, there may be a code issue
+    ```
+  </Accordion>
+
+  <Accordion title="Database is locked">
+    **Problem:** `sqlite3.OperationalError: database is locked`
+
+    **Cause:** Another process is accessing the database.
+
+    **Solution:**
+
+    ```bash
+    # Find processes using the database
+    lsof users.db
+    
+    # Kill the process
+    kill <PID>
+    
+    # Or restart the Flask app
+    pkill -f "python3 app.py"
+    python3 app.py
+    ```
+  </Accordion>
+
+  <Accordion title="No users in database / Login fails">
+    **Problem:** Test accounts (admin/usuario) don't exist.
+
+    **Solution:**
+
+    <Steps>
+      <Step title="Verify database contents">
+        ```bash
+        sqlite3 users.db "SELECT * FROM users"
+        ```
+      </Step>
+
+      <Step title="Manually insert test users">
+        **Vulnerable app:**
+        ```bash
+        sqlite3 vulnerable/users.db <<EOF
+        INSERT INTO users (username, password, email, role) 
+        VALUES ('admin', 'admin123', 'admin@test.com', 'admin');
+        INSERT INTO users (username, password, email) 
+        VALUES ('usuario', 'password123', 'user@test.com');
+        EOF
+        ```
+
+        **Secure app:**
+        ```bash
+        cd secure
+        python3 << 'EOF'
+        from database import create_connection
+        from werkzeug.security import generate_password_hash
+        import sqlite3
+
+        conn = create_connection()
+        cursor = conn.cursor()
+
+        try:
+            admin_pw = generate_password_hash('admin123')
+            user_pw = generate_password_hash('password123')
+            
+            cursor.execute("INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?)",
+                         ('admin', admin_pw, 'admin@test.com', 'admin'))
+            cursor.execute("INSERT INTO users (username, password, email) VALUES (?, ?, ?)",
+                         ('usuario', user_pw, 'user@test.com'))
+            conn.commit()
+            print("✓ Users created")
+        except sqlite3.IntegrityError:
+            print("Users already exist")
+        finally:
+            conn.close()
+        EOF
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Application Runtime Issues
+
+<AccordionGroup>
+  <Accordion title="Address already in use (Port conflict)">
+    **Problem:** `OSError: [Errno 98] Address already in use`
+
+    **Cause:** Port 5000 or 5001 is already occupied.
+
+    **Solution:**
+
+    <Tabs>
+      <Tab title="Find and kill process">
+        ```bash
+        # Find process using port 5000
+        lsof -i :5000
+        # Or on some systems:
+        netstat -tulpn | grep :5000
+        
+        # Kill the process
+        kill <PID>
+        
+        # Or kill all Flask apps
+        pkill -f "python3 app.py"
+        ```
+      </Tab>
+
+      <Tab title="Use different port">
+        Edit `app.py` and change the port:
+
+        ```python
+        # Change from 5000 to 5002
+        if __name__ == '__main__':
+            app.run(host='0.0.0.0', port=5002, debug=False)
+        ```
+
+        Or specify port via environment variable:
+        ```bash
+        PORT=5002 python3 app.py
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+
+  <Accordion title="ImportError: cannot import name 'escape' from 'markupsafe'">
+    **Problem:** Secure app fails to import `escape` function.
+
+    **Solution:**
+
+    ```bash
+    # Update Werkzeug and MarkupSafe
+    pip install --upgrade Werkzeug markupsafe
+    
+    # Or install specific versions
+    pip install Werkzeug==3.0.0 markupsafe==2.1.3
+    ```
+
+    **Alternative import (if still failing):**
+
+    In `secure/app.py`, change:
+    ```python
+    from markupsafe import escape
+    ```
+
+    To:
+    ```python
+    from flask import escape
+    ```
+  </Accordion>
+
+  <Accordion title="CSRF token missing (secure app only)">
+    **Problem:** Forms in secure app show "CSRF token missing" error.
+
+    **Cause:** Flask-WTF CSRF protection is active.
+
+    **Solution:**
+
+    This is **expected behavior** for the secure app. To properly submit forms:
+
+    1. **Via browser:** The form should include `{{ csrf_token() }}` in templates
+    2. **Via curl/API:** Include the CSRF token:
+
+    ```bash
+    # Get CSRF token from cookies
+    curl -c cookies.txt http://localhost:5001/login
+    
+    # Extract token and submit form
+    CSRF_TOKEN=$(grep csrf_token cookies.txt | awk '{print $7}')
+    curl -b cookies.txt -X POST http://localhost:5001/login \
+      -d "username=admin&password=admin123&csrf_token=$CSRF_TOKEN"
+    ```
+
+    <Info>
+      The vulnerable app doesn't have CSRF protection, so this error won't occur there.
+    </Info>
+  </Accordion>
+
+  <Accordion title="App starts but returns 404 for all routes">
+    **Problem:** Flask starts successfully but all URLs return 404.
+
+    **Cause:** Templates or static files missing.
+
+    **Solution:**
+
+    <Steps>
+      <Step title="Verify directory structure">
+        ```bash
+        # Check for required directories
+        ls -la templates/ static/
+        ```
+
+        Should contain:
+        - `templates/` with .html files
+        - `static/` with CSS/JS files
+      </Step>
+
+      <Step title="Check app.py routes">
+        ```bash
+        # List all defined routes
+        python3 -c "from app import app; print(app.url_map)"
+        ```
+      </Step>
+
+      <Step title="Test specific route">
+        ```bash
+        curl -v http://localhost:5000/
+        curl -v http://localhost:5000/login
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Session not persisting / constant logouts">
+    **Problem:** User is logged out immediately or session doesn't persist.
+
+    **Cause:** Secret key issues or cookie problems.
+
+    **Solution:**
+
+    **Vulnerable app:**
+    ```python
+    # Ensure app.py has:
+    app.secret_key = 'clave_super_secreta_123'
+    ```
+
+    **Secure app:**
+    ```bash
+    # Verify .env file exists
+    cat secure/.env
+    
+    # Should contain:
+    SECRET_KEY=<long-random-string>
+    
+    # If missing, regenerate:
+    python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_hex(32))" > .env
+    ```
+
+    **Check browser cookies:**
+    - Open DevTools (F12) → Application → Cookies
+    - Verify `session` cookie exists for localhost
+    - Try clearing cookies and logging in again
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Testing Issues
+
+<AccordionGroup>
+  <Accordion title="SQL injection doesn't work">
+    **Problem:** SQL injection payloads don't bypass authentication.
+
+    **Troubleshooting:**
+
+    <Steps>
+      <Step title="Verify you're testing vulnerable app">
+        Ensure URL is http://localhost:5000 (NOT 5001)
+      </Step>
+
+      <Step title="Check terminal output">
+        Look for executed query in terminal:
+        ```
+        Query ejecutada: SELECT * FROM users WHERE ...
+        ```
+
+        If you don't see this, you're on the secure app.
+      </Step>
+
+      <Step title="Try different payloads">
+        - `admin' --` (with space after --)
+        - `' OR '1'='1` (in password field)
+        - `admin' OR 'a'='a` (in username)
+      </Step>
+
+      <Step title="Verify database has users">
+        ```bash
+        sqlite3 vulnerable/users.db "SELECT username FROM users"
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="XSS payload displays as text instead of executing">
+    **Problem:** JavaScript appears as text on page.
+
+    **Cause:** You're testing the secure app, which escapes HTML.
+
+    **Solution:**
+
+    - Verify URL is http://localhost:5000 (vulnerable app)
+    - Check page source - vulnerable app shows: `<script>alert('XSS')</script>`
+    - Secure app shows: `&lt;script&gt;alert('XSS')&lt;/script&gt;`
+
+    **If on vulnerable app and still escaped:**
+    - Check if template uses `{{ message | safe }}` or `{{ message }}`
+    - Should NOT have `| escape` filter in vulnerable version
+  </Accordion>
+
+  <Accordion title="IDOR doesn't allow viewing other profiles">
+    **Problem:** Changing `?id=` parameter doesn't show other users.
+
+    **Solution:**
+
+    <Steps>
+      <Step title="Ensure you're logged in">
+        IDOR requires an active session. Login first:
+        - Username: `usuario`
+        - Password: `password123`
+      </Step>
+
+      <Step title="Verify you're on vulnerable app">
+        URL should be http://localhost:5000/profile?id=1
+      </Step>
+
+      <Step title="Try different IDs">
+        ```bash
+        # Via browser:
+        http://localhost:5000/profile?id=1  # Admin
+        http://localhost:5000/profile?id=2  # Usuario
+        
+        # Via curl:
+        curl -b cookies.txt http://localhost:5000/profile?id=1
+        ```
+      </Step>
+
+      <Step title="Check database for user IDs">
+        ```bash
+        sqlite3 vulnerable/users.db "SELECT id, username FROM users"
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Browser blocks XSS payloads">
+    **Problem:** Modern browsers have built-in XSS filters.
+
+    **Cause:** Chrome/Edge XSS Auditor or similar protection.
+
+    **Solution:**
+
+    <Tabs>
+      <Tab title="Disable XSS protection (temporarily)">
+        **Chrome/Edge:**
+        ```bash
+        # Launch Chrome with XSS auditor disabled (for testing only)
+        google-chrome --disable-xss-auditor --disable-web-security --user-data-dir=/tmp/chrome-test
+        ```
+
+        <Warning>
+          Only use this for educational testing. Do not browse other sites with these flags.
+        </Warning>
+      </Tab>
+
+      <Tab title="Use Firefox">
+        Firefox doesn't have built-in XSS filtering:
+        ```bash
+        firefox http://localhost:5000/dashboard?message=<script>alert('XSS')</script>
+        ```
+      </Tab>
+
+      <Tab title="Alternative XSS payloads">
+        Try payloads that bypass basic filters:
+        ```html
+        <img src=x onerror="alert('XSS')">
+        <svg onload="alert('XSS')">
+        <body onload="alert('XSS')">
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Network and Access Issues
+
+<AccordionGroup>
+  <Accordion title="Cannot access app from another device">
+    **Problem:** App works on localhost but not from other devices.
+
+    **Solution:**
+
+    <Steps>
+      <Step title="Verify app binds to 0.0.0.0">
+        Check `app.py`:
+        ```python
+        app.run(host='0.0.0.0', port=5000)  # Not 127.0.0.1
+        ```
+      </Step>
+
+      <Step title="Check firewall">
+        **Linux (UFW):**
+        ```bash
+        sudo ufw allow 5000/tcp
+        sudo ufw allow 5001/tcp
+        ```
+
+        **Linux (firewalld):**
+        ```bash
+        sudo firewall-cmd --add-port=5000/tcp --permanent
+        sudo firewall-cmd --reload
+        ```
+
+        **macOS:**
+        ```bash
+        # Check firewall settings in System Preferences
+        ```
+      </Step>
+
+      <Step title="Find your IP address">
+        ```bash
+        # Linux/macOS
+        ip addr show | grep inet
+        # Or
+        ifconfig | grep inet
+        
+        # Access from other device:
+        # http://<your-ip>:5000
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="ERR_CONNECTION_REFUSED in browser">
+    **Problem:** Browser cannot connect to localhost:5000
+
+    **Solution:**
+
+    ```bash
+    # Check if app is running
+    ps aux | grep "python3 app.py"
+    
+    # Check if port is listening
+    netstat -tulpn | grep :5000
+    # Or
+    lsof -i :5000
+    
+    # Test with curl
+    curl http://localhost:5000
+    
+    # If curl works but browser doesn't, try:
+    # - Clear browser cache
+    # - Try incognito/private mode
+    # - Try http://127.0.0.1:5000 instead
+    ```
+  </Accordion>
+
+  <Accordion title="Slow response times or timeouts">
+    **Problem:** App takes a long time to respond.
+
+    **Possible causes and solutions:**
+
+    1. **Database lock:**
+       ```bash
+       # Check for long-running queries
+       sqlite3 users.db ".timeout 1000"
+       ```
+
+    2. **Too many connections:**
+       ```bash
+       # Restart the app
+       pkill -f app.py
+       python3 app.py
+       ```
+
+    3. **Resource constraints:**
+       ```bash
+       # Check system resources
+       htop  # or top
+       df -h  # disk space
+       ```
+
+    4. **Use Gunicorn for better performance:**
+       ```bash
+       gunicorn app:app --bind 0.0.0.0:5000 --workers 2
+       ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Environment and Configuration
+
+<AccordionGroup>
+  <Accordion title="SECRET_KEY not found (secure app)">
+    **Problem:** `KeyError: 'SECRET_KEY'` in secure app.
+
+    **Solution:**
+
+    <Steps>
+      <Step title="Create .env file">
+        ```bash
+        cd secure
+        echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32)')" > .env
+        ```
+      </Step>
+
+      <Step title="Verify .env is loaded">
+        Check `secure/app.py` has:
+        ```python
+        from dotenv import load_dotenv
+        load_dotenv()
+        ```
+      </Step>
+
+      <Step title="Test environment loading">
+        ```bash
+        cd secure
+        python3 -c "from dotenv import load_dotenv; import os; load_dotenv(); print(os.getenv('SECRET_KEY'))"
+        ```
+
+        Should print the secret key.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Environment variables not working">
+    **Problem:** python-dotenv doesn't load .env file.
+
+    **Solution:**
+
+    ```bash
+    # Ensure .env is in same directory as app.py
+    ls -la .env
+    
+    # Verify python-dotenv is installed
+    python3 -c "import dotenv; print(dotenv.__version__)"
+    
+    # Manually set environment variable as fallback
+    export SECRET_KEY="your-secret-key-here"
+    python3 app.py
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Debugging Tips
+
+<Steps>
+  <Step title="Enable Flask debug mode (development only)">
+    Temporarily enable debug mode for better error messages:
+
+    ```python
+    # In app.py
+    if __name__ == '__main__':
+        app.run(host='0.0.0.0', port=5000, debug=True)  # Add debug=True
+    ```
+
+    <Warning>
+      Never enable debug mode in production - it exposes sensitive information.
+    </Warning>
+  </Step>
+
+  <Step title="Check Flask logs">
+    Look for errors in the terminal where Flask is running:
+
+    ```bash
+    # Run with verbose output
+    python3 app.py 2>&1 | tee flask.log
+    ```
+  </Step>
+
+  <Step title="Test with curl for debugging">
+    Bypass browser to test raw HTTP:
+
+    ```bash
+    # Test GET request
+    curl -v http://localhost:5000/
+    
+    # Test POST with data
+    curl -v -X POST http://localhost:5000/login \
+      -d "username=admin&password=admin123"
+    
+    # Follow redirects
+    curl -v -L -c cookies.txt http://localhost:5000/login \
+      -d "username=admin&password=admin123"
+    ```
+  </Step>
+
+  <Step title="Inspect database directly">
+    ```bash
+    # Open SQLite shell
+    sqlite3 users.db
+    
+    # SQLite commands:
+    .tables                    # List tables
+    .schema users             # Show table structure
+    SELECT * FROM users;      # View all users
+    .quit                     # Exit
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/your-repo/auth-security-demo/issues">
+    Report bugs or ask questions on GitHub
+  </Card>
+  
+  <Card title="Documentation" icon="book" href="/introduction">
+    Review the complete documentation
+  </Card>
+  
+  <Card title="Installation Guide" icon="download" href="/setup/installation">
+    Re-check installation steps
+  </Card>
+  
+  <Card title="Testing Guide" icon="bug" href="/setup/testing-vulnerabilities">
+    Review testing procedures
+  </Card>
+</CardGroup>
+
+---
+
+## Quick Diagnostics
+
+Run this diagnostic script to check your setup:
+
+```bash
+#!/bin/bash
+echo "=== Auth Security Demo Diagnostics ==="
+
+# Check Python version
+echo "\n[Python Version]"
+python3 --version
+
+# Check Flask installation
+echo "\n[Flask Installation]"
+python3 -c "import flask; print(f'Flask {flask.__version__}')"
+
+# Check database files
+echo "\n[Database Files]"
+ls -lh vulnerable/users.db secure/users.db 2>/dev/null || echo "Database files missing"
+
+# Check if ports are in use
+echo "\n[Port Status]"
+lsof -i :5000,5001 || echo "Ports 5000 and 5001 are available"
+
+# Check for running Flask processes
+echo "\n[Running Processes]"
+ps aux | grep "python3 app.py" | grep -v grep || echo "No Flask apps running"
+
+# Test database connectivity
+echo "\n[Database Users]"
+sqlite3 vulnerable/users.db "SELECT username, role FROM users" 2>/dev/null || echo "Cannot query database"
+
+echo "\n=== Diagnostics Complete ==="
+```
+
+Save as `diagnose.sh`, make executable (`chmod +x diagnose.sh`), and run (`./diagnose.sh`).

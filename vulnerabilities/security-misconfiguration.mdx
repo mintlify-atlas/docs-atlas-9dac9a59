@@ -1,0 +1,736 @@
+---
+title: 'Security Misconfiguration'
+description: 'Missing security headers, debug mode, and insecure server configurations'
+icon: 'gears'
+---
+
+<Warning>
+  **Educational Purpose Only** - Security misconfigurations can expose sensitive information and create attack vectors. Always follow security best practices in production.
+</Warning>
+
+## Overview
+
+Security misconfiguration occurs when security settings are not defined, implemented, or maintained properly. In this demo, the vulnerable version lacks critical security headers, uses a hardcoded secret key, potentially runs with debug mode enabled, and misses other important security configurations that protect against various attacks.
+
+<Card title="Severity Rating" icon="exclamation-triangle">
+  **MEDIUM to HIGH** - CVSS Score: 7.0/10
+  
+  **CWE Reference**: [CWE-16: Configuration](https://cwe.mitre.org/data/definitions/16.html), [CWE-209: Information Exposure Through Error Messages](https://cwe.mitre.org/data/definitions/209.html)
+</Card>
+
+## Vulnerable Configurations
+
+The vulnerable version has multiple configuration issues:
+
+<CodeGroup>
+```python vulnerable/app.py:5-6 (Hardcoded Secret Key)
+app = Flask(__name__)
+app.secret_key = 'clave_super_secreta_123'  # VULNERABLE
+
+# Issues:
+# - Hardcoded in source code
+# - Committed to version control
+# - Same across all environments
+# - Weak/guessable value
+```
+
+```python vulnerable/app.py:118-120 (Debug Mode Risk)
+if __name__ == '__main__':
+    import os
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+
+# Note: Even with debug=False here, environment variables or
+# other config could enable it. No explicit safeguards.
+```
+
+```python vulnerable/app.py (Missing Security Headers)
+# NO SECURITY HEADERS AT ALL
+# Missing:
+# - Content-Security-Policy
+# - X-Content-Type-Options
+# - X-Frame-Options
+# - Strict-Transport-Security
+# - X-XSS-Protection
+# - Referrer-Policy
+```
+
+```python vulnerable/app.py:42-44 (Error Information Disclosure)
+except sqlite3.Error as e:
+    flash(f'Error SQL: {str(e)}', 'danger')  # VULNERABLE
+    print(f"ERROR SQL: {e}")  # Logs to console
+
+# Exposes:
+# - Database structure
+# - SQL syntax
+# - Internal paths
+# - Technology stack
+```
+</CodeGroup>
+
+## Security Header Vulnerabilities
+
+<AccordionGroup>
+  <Accordion title="1. Missing Content-Security-Policy (CSP)">
+    **Risk**: Allows XSS attacks and malicious script execution
+    
+    **Missing Header**:
+    ```http
+    Content-Security-Policy: default-src 'self'
+    ```
+    
+    **Impact Without CSP**:
+    ```html
+    <!-- Attacker can inject and execute scripts -->
+    <script src="https://evil.com/malware.js"></script>
+    <script>alert(document.cookie)</script>
+    
+    <!-- Can load resources from anywhere -->
+    <iframe src="https://phishing.com"></iframe>
+    <img src="https://tracker.com/pixel.gif">
+    ```
+    
+    **Allowed Attacks**:
+    - Inline script execution
+    - External script loading
+    - eval() and similar functions
+    - Inline event handlers (onclick, onerror)
+  </Accordion>
+  
+  <Accordion title="2. Missing X-Frame-Options">
+    **Risk**: Enables clickjacking attacks
+    
+    **Missing Header**:
+    ```http
+    X-Frame-Options: DENY
+    ```
+    
+    **Clickjacking Attack**:
+    ```html
+    <!-- Attacker's page -->
+    <html>
+    <head>
+        <style>
+            #target-site {
+                position: absolute;
+                opacity: 0.0;  /* Invisible */
+                z-index: 2;
+            }
+            #fake-button {
+                position: absolute;
+                z-index: 1;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Invisible iframe with vulnerable site -->
+        <iframe id="target-site" 
+                src="https://auth-vulnerable.onrender.com/delete-account">
+        </iframe>
+        
+        <!-- Visible fake button underneath -->
+        <button id="fake-button">Click for FREE PRIZE!</button>
+    </body>
+    </html>
+    ```
+    
+    **Result**: User thinks they're clicking "FREE PRIZE" but actually clicking "Delete Account"
+  </Accordion>
+  
+  <Accordion title="3. Missing X-Content-Type-Options">
+    **Risk**: Allows MIME type sniffing attacks
+    
+    **Missing Header**:
+    ```http
+    X-Content-Type-Options: nosniff
+    ```
+    
+    **Attack Scenario**:
+    ```python
+    # Vulnerable: Serving user-uploaded file
+    @app.route('/uploads/<filename>')
+    def serve_upload(filename):
+        return send_file(f'uploads/{filename}')
+    ```
+    
+    **Exploitation**:
+    1. Attacker uploads file named `image.jpg` containing JavaScript:
+       ```javascript
+       alert('XSS via MIME sniffing')
+       ```
+    2. Victim visits: `/uploads/image.jpg`
+    3. Without `nosniff`, browser detects JavaScript and executes it
+    4. With `nosniff`, browser respects Content-Type header and treats as image
+  </Accordion>
+  
+  <Accordion title="4. Missing Strict-Transport-Security (HSTS)">
+    **Risk**: Allows man-in-the-middle attacks via SSL stripping
+    
+    **Missing Header**:
+    ```http
+    Strict-Transport-Security: max-age=31536000; includeSubDomains
+    ```
+    
+    **Attack - SSL Stripping**:
+    1. User types `auth-vulnerable.onrender.com` (no https://)
+    2. Browser makes HTTP request
+    3. Attacker intercepts and proxies connection
+    4. Attacker downgrades to HTTP
+    5. User sees HTTP site, no warning
+    6. Credentials transmitted in plaintext
+    
+    **With HSTS**: Browser automatically upgrades to HTTPS, preventing interception
+  </Accordion>
+  
+  <Accordion title="5. Missing X-XSS-Protection">
+    **Risk**: Disables browser's built-in XSS filter
+    
+    **Missing Header**:
+    ```http
+    X-XSS-Protection: 1; mode=block
+    ```
+    
+    **Note**: Modern browsers rely on CSP instead, but this provides defense-in-depth for older browsers
+  </Accordion>
+  
+  <Accordion title="6. Missing Referrer-Policy">
+    **Risk**: Leaks sensitive information in Referer header
+    
+    **Missing Header**:
+    ```http
+    Referrer-Policy: strict-origin-when-cross-origin
+    ```
+    
+    **Information Leak**:
+    ```
+    User on: https://auth-vulnerable.onrender.com/dashboard?user_id=123&token=secret
+    Clicks link to external site
+    
+    External site receives:
+    Referer: https://auth-vulnerable.onrender.com/dashboard?user_id=123&token=secret
+    
+    # Leaked: user_id, token, full URL structure
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error Information Disclosure
+
+<Tabs>
+  <Tab title="Vulnerable: SQL Errors">
+    ```python
+    # vulnerable/app.py:42-44
+    except sqlite3.Error as e:
+        flash(f'Error SQL: {str(e)}', 'danger')
+        print(f"ERROR SQL: {e}")
+    ```
+    
+    **What Attackers Learn**:
+    ```
+    Error SQL: near "WHERE": syntax error
+    → Reveals: Database is SQLite
+    → Reveals: Query structure
+    → Suggests: SQL injection possible
+    
+    Error SQL: no such table: users
+    → Reveals: Database schema
+    → Confirms: Table names
+    
+    Error SQL: UNIQUE constraint failed: users.username
+    → Reveals: Username exists
+    → Enables: User enumeration
+    ```
+  </Tab>
+  
+  <Tab title="Vulnerable: Stack Traces">
+    If debug mode is accidentally enabled:
+    
+    ```python
+    app.run(debug=True)  # NEVER in production!
+    ```
+    
+    **Exposed Information**:
+    ```python
+    Traceback (most recent call last):
+      File "/home/user/vulnerable/app.py", line 26, in login
+        cursor.execute(query)
+      File "/usr/lib/python3.9/sqlite3/dbapi2.py", line 116, in execute
+        return self._execute(sql, params)
+    sqlite3.OperationalError: near "'": syntax error
+    
+    # Reveals:
+    # - Full file paths (/home/user/vulnerable/app.py)
+    # - Python version (3.9)
+    # - Framework (Flask)
+    # - Line numbers (26)
+    # - Variable names
+    # - Library versions
+    ```
+  </Tab>
+  
+  <Tab title="Vulnerable: Version Disclosure">
+    ```http
+    HTTP/1.1 200 OK
+    Server: Werkzeug/2.3.7 Python/3.9.18
+    X-Powered-By: Flask
+    ```
+    
+    **What Attackers Do**:
+    1. Note exact versions
+    2. Search CVE database for known vulnerabilities
+    3. Use version-specific exploits
+    
+    **Example**:
+    ```bash
+    # Attacker research
+    searchsploit Werkzeug 2.3.7
+    # Finds: CVE-2023-XXXXX - Remote Code Execution
+    ```
+  </Tab>
+</Tabs>
+
+## Secure Implementation
+
+The secure version implements comprehensive security headers and configurations:
+
+<CodeGroup>
+```python secure/app.py:7-13 (Secure Secret Management)
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+app = Flask(__name__)
+# SECURE: Secret from environment variable
+app.secret_key = os.getenv('SECRET_KEY')
+
+if not app.secret_key:
+    raise ValueError("SECRET_KEY environment variable not set!")
+```
+
+```python secure/app.py:18-26 (Security Headers)
+@app.after_request
+def set_security_headers(response):
+    """Apply security headers to all responses"""
+    # Prevent MIME sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    
+    # Enable XSS filter in older browsers
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Force HTTPS
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # Content Security Policy - prevent XSS
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    
+    # Control referrer information
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # Additional: Permissions Policy (formerly Feature-Policy)
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    
+    return response
+```
+
+```python Secure Error Handling
+# Replace vulnerable error messages
+except sqlite3.Error as e:
+    # SECURE: Log error server-side
+    logger.error(f"Database error: {e}")
+    
+    # SECURE: Generic message to user
+    flash('Se produjo un error. Inténtelo nuevamente.', 'danger')
+    
+    # No technical details exposed
+```
+
+```python Secure Production Configuration
+# config.py
+import os
+
+class Config:
+    SECRET_KEY = os.getenv('SECRET_KEY')
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    PERMANENT_SESSION_LIFETIME = 1800  # 30 minutes
+    
+class DevelopmentConfig(Config):
+    DEBUG = True
+    TESTING = True
+    
+class ProductionConfig(Config):
+    DEBUG = False
+    TESTING = False
+    # Force HTTPS in production
+    PREFERRED_URL_SCHEME = 'https'
+    
+# Load appropriate config
+config = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig
+}
+
+app.config.from_object(config[os.getenv('FLASK_ENV', 'production')])
+```
+
+```python Hide Server Version
+# Remove version disclosure
+from werkzeug.serving import WSGIRequestHandler
+
+class NoServerHeaderRequestHandler(WSGIRequestHandler):
+    def version_string(self):
+        return ''  # Hide server version
+
+if __name__ == '__main__':
+    app.run(
+        host='0.0.0.0',
+        port=5001,
+        debug=False,
+        request_handler=NoServerHeaderRequestHandler
+    )
+```
+</CodeGroup>
+
+## Security Configuration Checklist
+
+<Steps>
+  <Step title="Secret Management">
+    <Tabs>
+      <Tab title="Generate Secure Secret">
+        ```python
+        import secrets
+        
+        # Generate cryptographically secure key
+        secret_key = secrets.token_hex(32)
+        print(f"SECRET_KEY={secret_key}")
+        ```
+      </Tab>
+      
+      <Tab title="Store in Environment">
+        ```bash
+        # .env file (add to .gitignore)
+        SECRET_KEY=your_generated_key_here
+        DATABASE_URL=postgresql://user:pass@host/db
+        API_KEY=your_api_key
+        ```
+      </Tab>
+      
+      <Tab title="Load in Application">
+        ```python
+        from dotenv import load_dotenv
+        import os
+        
+        load_dotenv()
+        
+        # Validate required env vars
+        required_env_vars = ['SECRET_KEY', 'DATABASE_URL']
+        for var in required_env_vars:
+            if not os.getenv(var):
+                raise ValueError(f"{var} not set")
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Security Headers">
+    **Complete Header Configuration**:
+    ```python
+    @app.after_request
+    def security_headers(response):
+        headers = {
+            # Prevent MIME sniffing
+            'X-Content-Type-Options': 'nosniff',
+            
+            # Clickjacking protection
+            'X-Frame-Options': 'DENY',
+            
+            # XSS protection (legacy)
+            'X-XSS-Protection': '1; mode=block',
+            
+            # Force HTTPS (1 year)
+            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+            
+            # Content Security Policy
+            'Content-Security-Policy': (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "font-src 'self'; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'"
+            ),
+            
+            # Referrer control
+            'Referrer-Policy': 'strict-origin-when-cross-origin',
+            
+            # Permissions policy
+            'Permissions-Policy': (
+                'geolocation=(), '
+                'microphone=(), '
+                'camera=(), '
+                'payment=(), '
+                'usb=()'
+            ),
+            
+            # Cache control for sensitive pages
+            'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+        
+        for header, value in headers.items():
+            response.headers[header] = value
+        
+        return response
+    ```
+  </Step>
+  
+  <Step title="Error Handling">
+    ```python
+    import logging
+    from flask import jsonify
+    
+    # Configure logging
+    logging.basicConfig(
+        filename='app.log',
+        level=logging.ERROR,
+        format='%(asctime)s %(levelname)s: %(message)s'
+    )
+    
+    # Custom error handlers
+    @app.errorhandler(404)
+    def not_found(error):
+        return render_template('404.html'), 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        # Log the actual error
+        logging.error(f'Server Error: {error}')
+        
+        # Show generic message
+        return render_template('500.html'), 500
+    
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        # Log full traceback
+        logging.exception("Unhandled exception")
+        
+        # Return generic error
+        if request.path.startswith('/api/'):
+            return jsonify(error="Internal server error"), 500
+        return render_template('500.html'), 500
+    ```
+  </Step>
+  
+  <Step title="Debug Mode Protection">
+    ```python
+    import os
+    
+    # Never allow debug in production
+    is_production = os.getenv('FLASK_ENV') == 'production'
+    
+    if is_production and app.debug:
+        raise ValueError("Debug mode cannot be enabled in production!")
+    
+    # Additional safeguards
+    if __name__ == '__main__':
+        # Only run dev server in development
+        if is_production:
+            raise ValueError("Use production WSGI server (gunicorn, uwsgi)")
+        
+        app.run(
+            debug=(not is_production),
+            host='127.0.0.1' if not is_production else '0.0.0.0'
+        )
+    ```
+  </Step>
+  
+  <Step title="Rate Limiting">
+    ```python
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="redis://localhost:6379"
+    )
+    
+    # Apply to login endpoint
+    @app.route('/login', methods=['POST'])
+    @limiter.limit("5 per minute")
+    def login():
+        # ...
+    ```
+  </Step>
+</Steps>
+
+## Testing Security Configuration
+
+<Tabs>
+  <Tab title="Security Headers">
+    ```bash
+    # Test with curl
+    curl -I https://auth-secure.onrender.com
+    
+    # Should see:
+    # X-Content-Type-Options: nosniff
+    # X-Frame-Options: DENY
+    # Strict-Transport-Security: max-age=31536000
+    # Content-Security-Policy: default-src 'self'
+    # etc.
+    ```
+    
+    **Online Tools**:
+    - [SecurityHeaders.com](https://securityheaders.com)
+    - [Mozilla Observatory](https://observatory.mozilla.org)
+    - Results show letter grade (A+, A, B, etc.)
+  </Tab>
+  
+  <Tab title="SSL/TLS Configuration">
+    ```bash
+    # Test SSL configuration
+    sslyze --regular auth-secure.onrender.com
+    
+    # Or use online tool
+    # https://www.ssllabs.com/ssltest/
+    ```
+    
+    **Check for**:
+    - TLS 1.2+ only
+    - Strong cipher suites
+    - HSTS enabled
+    - Certificate validity
+  </Tab>
+  
+  <Tab title="Information Disclosure">
+    ```python
+    import requests
+    
+    def check_info_disclosure(url):
+        issues = []
+        
+        # Check for version disclosure
+        r = requests.get(url)
+        if 'Server' in r.headers:
+            if any(v in r.headers['Server'] for v in ['Werkzeug', 'Python', 'Flask']):
+                issues.append(f"Version disclosure: {r.headers['Server']}")
+        
+        # Check error pages
+        r = requests.get(f"{url}/nonexistent")
+        if 'Werkzeug' in r.text or 'Traceback' in r.text:
+            issues.append("Debug information in 404 page")
+        
+        # Check for .git exposure
+        r = requests.get(f"{url}/.git/config")
+        if r.status_code == 200:
+            issues.append(".git directory exposed!")
+        
+        # Check for common files
+        for file in ['.env', 'config.py', '.DS_Store', 'web.config']:
+            r = requests.get(f"{url}/{file}")
+            if r.status_code == 200:
+                issues.append(f"Sensitive file exposed: {file}")
+        
+        return issues
+    ```
+  </Tab>
+  
+  <Tab title="Automated Scanning">
+    ```bash
+    # OWASP ZAP
+    zap-cli quick-scan --self-contained \
+      --start-options '-config api.disablekey=true' \
+      https://auth-vulnerable.onrender.com
+    
+    # Nikto web scanner
+    nikto -h https://auth-vulnerable.onrender.com
+    
+    # Nmap with scripts
+    nmap -p 443 --script ssl-enum-ciphers \
+      auth-vulnerable.onrender.com
+    ```
+  </Tab>
+</Tabs>
+
+## Production Deployment Checklist
+
+- [ ] **Secrets**: All secrets in environment variables, not code
+- [ ] **Debug Mode**: Debug disabled (`DEBUG=False`)
+- [ ] **HTTPS**: SSL/TLS certificate configured, HSTS enabled
+- [ ] **Security Headers**: All headers configured
+- [ ] **Error Handling**: Generic error messages, detailed logging
+- [ ] **Rate Limiting**: Implemented on sensitive endpoints
+- [ ] **CSRF Protection**: Enabled and tested
+- [ ] **Session Security**: Secure, HttpOnly, SameSite cookies
+- [ ] **Dependencies**: All packages updated, no known vulnerabilities
+- [ ] **File Permissions**: Restricted (no world-readable secrets)
+- [ ] **Database**: Least privilege user, encrypted connections
+- [ ] **Logging**: Centralized, no sensitive data logged
+- [ ] **Monitoring**: Error tracking, security event monitoring
+- [ ] **Backups**: Automated, encrypted, tested
+- [ ] **WAF**: Web Application Firewall configured (if applicable)
+
+## Compliance & Standards
+
+<CardGroup cols={2}>
+  <Card title="OWASP Top 10" icon="list">
+    **A05:2021 – Security Misconfiguration**
+    
+    Ranked #5 most critical web application security risk
+    
+    Includes:
+    - Missing security hardening
+    - Unnecessary features enabled
+    - Default accounts/passwords
+    - Error handling reveals stack traces
+    - Outdated software
+  </Card>
+  
+  <Card title="PCI-DSS" icon="credit-card">
+    **Requirement 6.5**: Secure development
+    
+    **Requirement 6.6**: Web application firewall or code review
+    
+    **Requirement 10**: Log and monitor all access
+  </Card>
+  
+  <Card title="NIST Cybersecurity Framework" icon="shield">
+    **PR.DS-1**: Data-at-rest is protected
+    
+    **PR.DS-2**: Data-in-transit is protected
+    
+    **DE.CM-1**: Network monitored for anomalies
+  </Card>
+  
+  <Card title="CIS Controls" icon="check-double">
+    **Control 3**: Data Protection
+    
+    **Control 14**: Security Awareness Training
+    
+    **Control 18**: Application Software Security
+  </Card>
+</CardGroup>
+
+## References
+
+- [OWASP Secure Headers Project](https://owasp.org/www-project-secure-headers/)
+- [Mozilla Web Security Guidelines](https://infosec.mozilla.org/guidelines/web_security)
+- [CWE-16: Configuration](https://cwe.mitre.org/data/definitions/16.html)
+- [Flask Security Considerations](https://flask.palletsprojects.com/en/stable/security/)
+- [SecurityHeaders.com](https://securityheaders.com)
+
+<Card title="Next Steps" icon="arrow-right">
+  Related security topics:
+  - [XSS](/vulnerabilities/xss) - Content-Security-Policy helps prevent
+  - [Session Management](/vulnerabilities/session-management) - Cookie security flags
+  - [Sensitive Data Exposure](/vulnerabilities/sensitive-data-exposure) - Protecting sensitive information
+</Card>

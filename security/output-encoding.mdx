@@ -1,0 +1,375 @@
+---
+title: Output Encoding
+description: Prevent XSS attacks by properly encoding user-generated content
+icon: shield-halved
+---
+
+## Overview
+
+Output encoding is critical for preventing Cross-Site Scripting (XSS) attacks. This guide demonstrates how to safely display user-generated content in your application.
+
+## What is XSS?
+
+Cross-Site Scripting (XSS) occurs when an attacker injects malicious scripts into web pages viewed by other users.
+
+<CardGroup cols={3}>
+  <Card title="Stored XSS" icon="database">
+    Malicious script is stored in the database and executed when displayed to users.
+  </Card>
+  
+  <Card title="Reflected XSS" icon="arrow-right-arrow-left">
+    Malicious script in URL parameters is reflected back in the response.
+  </Card>
+  
+  <Card title="DOM-based XSS" icon="code">
+    Client-side JavaScript manipulates the DOM with untrusted data.
+  </Card>
+</CardGroup>
+
+## Flask's Auto-Escaping
+
+Flask's Jinja2 templates automatically escape variables by default, providing built-in XSS protection.
+
+### Template Auto-Escaping
+
+```html
+<!-- Automatically escaped by Jinja2 -->
+<h1>Welcome, {{ username }}</h1>
+
+<!-- If username contains: <script>alert('XSS')</script> -->
+<!-- It will be rendered as: &lt;script&gt;alert('XSS')&lt;/script&gt; -->
+```
+
+<Note>
+  Jinja2 automatically escapes: `<`, `>`, `&`, `"`, and `'` characters to prevent XSS attacks.
+</Note>
+
+## Manual Escaping with MarkupSafe
+
+When handling user input in Python code, use `escape()` from MarkupSafe:
+
+```python secure/app.py
+from markupsafe import escape
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    # Get user input from query parameters
+    message = request.args.get('message', '')
+    
+    # Escape the message to prevent XSS
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         message=escape(message),
+                         role=session.get('role'))
+```
+
+<Steps>
+  <Step title="Import escape function">
+    ```python
+    from markupsafe import escape
+    ```
+  </Step>
+  
+  <Step title="Escape user input">
+    ```python
+    safe_message = escape(user_input)
+    ```
+  </Step>
+  
+  <Step title="Pass to template">
+    ```python
+    return render_template('template.html', message=safe_message)
+    ```
+  </Step>
+</Steps>
+
+## Context-Specific Encoding
+
+Different contexts require different encoding strategies:
+
+<CardGroup cols={2}>
+  <Card title="HTML Context" icon="code">
+    Use `escape()` for HTML content:
+    ```python
+    safe_html = escape(user_input)
+    ```
+  </Card>
+  
+  <Card title="JavaScript Context" icon="js">
+    JSON encode data for JavaScript:
+    ```python
+    import json
+    safe_js = json.dumps(user_input)
+    ```
+  </Card>
+  
+  <Card title="URL Context" icon="link">
+    URL encode parameters:
+    ```python
+    from urllib.parse import quote
+    safe_url = quote(user_input)
+    ```
+  </Card>
+  
+  <Card title="CSS Context" icon="palette">
+    Avoid user input in CSS; if necessary, strictly whitelist values.
+  </Card>
+</CardGroup>
+
+## Safe vs Unsafe Practices
+
+### HTML Output
+
+<CardGroup cols={2}>
+  <Card title="Safe" icon="check" color="#10b981">
+    ```python
+    from markupsafe import escape
+    
+    message = escape(request.args.get('message', ''))
+    return render_template('page.html', message=message)
+    ```
+    
+    ```html
+    <p>{{ message }}</p>
+    ```
+  </Card>
+  
+  <Card title="Unsafe" icon="xmark" color="#ef4444">
+    ```python
+    message = request.args.get('message', '')
+    return render_template('page.html', message=message)
+    ```
+    
+    ```html
+    <p>{{ message | safe }}</p>
+    ```
+  </Card>
+</CardGroup>
+
+<Note>
+  Never use `| safe` filter or `Markup()` on user input unless you've thoroughly sanitized it.
+</Note>
+
+### JavaScript Context
+
+When passing data to JavaScript, use JSON encoding:
+
+```html
+<script>
+    // Safe: JSON-encoded data
+    const userData = {{ user_data | tojson }};
+    console.log(userData.name);
+</script>
+```
+
+<Tip>
+  Jinja2's `tojson` filter safely encodes Python objects for use in JavaScript context.
+</Tip>
+
+## Preventing Stored XSS
+
+Stored XSS occurs when malicious input is saved to the database and later displayed to users.
+
+### Input Validation + Output Encoding
+
+```python secure/app.py
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        # Input validation
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        
+        # Validate format and length
+        if len(username) < 3 or len(username) > 50:
+            flash('Invalid username length', 'danger')
+            return render_template('register.html')
+        
+        # Store in database (parameterized query prevents SQL injection)
+        query = "INSERT INTO users (username, email) VALUES (%s, %s)"
+        cursor.execute(query, (username, email))
+        
+        # When displaying later, Jinja2 auto-escapes
+        return render_template('profile.html', username=username)
+```
+
+<Steps>
+  <Step title="Validate input">
+    Validate length, format, and type of user input before storing:
+    ```python
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return error('Invalid username')
+    ```
+  </Step>
+  
+  <Step title="Store safely">
+    Use parameterized queries to prevent SQL injection:
+    ```python
+    cursor.execute("INSERT INTO users (username) VALUES (%s)", (username,))
+    ```
+  </Step>
+  
+  <Step title="Encode output">
+    Let Jinja2 auto-escape or use manual escaping:
+    ```html
+    <h1>{{ username }}</h1>
+    ```
+  </Step>
+</Steps>
+
+## Preventing Reflected XSS
+
+Reflected XSS occurs when user input from the URL is displayed without proper encoding:
+
+```python secure/app.py
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    # Query parameter from URL
+    message = request.args.get('message', '')
+    
+    # Escape before displaying
+    return render_template('dashboard.html',
+                         message=escape(message))
+```
+
+<Info>
+  Even though Jinja2 auto-escapes, explicitly using `escape()` in Python code makes your security intentions clear and provides defense in depth.
+</Info>
+
+## Content Security Policy (CSP)
+
+CSP headers provide an additional layer of XSS protection by restricting resource loading:
+
+```python secure/app.py
+@app.after_request
+def set_security_headers(response):
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
+```
+
+This policy:
+- Only allows resources from the same origin
+- Blocks inline scripts and styles
+- Prevents loading external resources
+
+<Tip>
+  See the [Security Headers](/security/security-headers) page for comprehensive CSP configuration.
+</Tip>
+
+## Rich Text and HTML Input
+
+If you must accept HTML input (e.g., for a blog or forum), use a sanitization library:
+
+```python
+from bleach import clean
+
+# Whitelist allowed tags and attributes
+allowed_tags = ['p', 'br', 'strong', 'em', 'a']
+allowed_attrs = {'a': ['href', 'title']}
+
+user_html = request.form.get('content')
+safe_html = clean(user_html, tags=allowed_tags, attributes=allowed_attrs)
+
+# Store safe_html in database
+```
+
+<Note>
+  Libraries like Bleach (Python) or DOMPurify (JavaScript) provide comprehensive HTML sanitization.
+</Note>
+
+## Common XSS Vectors to Prevent
+
+<CardGroup cols={2}>
+  <Card title="Script Tags" icon="code">
+    ```html
+    <script>alert('XSS')</script>
+    ```
+    **Prevention**: Auto-escaping converts to `&lt;script&gt;`
+  </Card>
+  
+  <Card title="Event Handlers" icon="hand-pointer">
+    ```html
+    <img src=x onerror="alert('XSS')">
+    ```
+    **Prevention**: Auto-escaping prevents attribute injection
+  </Card>
+  
+  <Card title="JavaScript URLs" icon="link">
+    ```html
+    <a href="javascript:alert('XSS')">Click</a>
+    ```
+    **Prevention**: Validate and sanitize href attributes
+  </Card>
+  
+  <Card title="Data URIs" icon="file">
+    ```html
+    <img src="data:text/html,<script>alert('XSS')</script>">
+    ```
+    **Prevention**: CSP and input validation
+  </Card>
+</CardGroup>
+
+## Testing for XSS
+
+Test your application with common XSS payloads:
+
+```python
+test_payloads = [
+    "<script>alert('XSS')</script>",
+    "<img src=x onerror=alert('XSS')>",
+    "<svg onload=alert('XSS')>",
+    "javascript:alert('XSS')",
+    "<iframe src=javascript:alert('XSS')>"
+]
+
+for payload in test_payloads:
+    response = client.post('/submit', data={'content': payload})
+    # Verify payload is properly escaped in response
+    assert payload not in response.data.decode()
+```
+
+## Best Practices Summary
+
+<Steps>
+  <Step title="Trust Jinja2 auto-escaping">
+    For template output, rely on Jinja2's automatic HTML escaping.
+  </Step>
+  
+  <Step title="Manually escape in Python">
+    Use `escape()` when handling user input in Python code before passing to templates.
+  </Step>
+  
+  <Step title="Use context-specific encoding">
+    Apply appropriate encoding for HTML, JavaScript, URL, and CSS contexts.
+  </Step>
+  
+  <Step title="Never use |safe on user input">
+    Avoid `| safe` filter unless you've sanitized with a library like Bleach.
+  </Step>
+  
+  <Step title="Implement CSP headers">
+    Use Content-Security-Policy headers as defense in depth.
+  </Step>
+  
+  <Step title="Validate input">
+    Combine input validation with output encoding for maximum protection.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Security Headers" icon="shield" href="/security/security-headers">
+    Implement comprehensive security headers including CSP
+  </Card>
+  
+  <Card title="Input Validation" icon="filter" href="/security/input-validation">
+    Learn about validating user input before storage
+  </Card>
+</CardGroup>

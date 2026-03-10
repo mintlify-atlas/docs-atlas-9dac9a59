@@ -1,0 +1,206 @@
+---
+title: 'Introduction'
+description: 'Learn about web authentication security through hands-on demonstrations of common vulnerabilities and their fixes'
+icon: 'shield'
+---
+
+## What is Auth Security Demo?
+
+Auth Security Demo is an educational web application designed to teach developers and security professionals about common authentication and authorization vulnerabilities found in real-world applications. The project provides two parallel implementations:
+
+<CardGroup cols={2}>
+  <Card title="Vulnerable Version" icon="unlock" color="#ef4444">
+    Intentionally insecure implementation demonstrating 8 OWASP Top 10 vulnerabilities
+  </Card>
+  <Card title="Secure Version" icon="lock" color="#10b981">
+    Properly secured implementation with industry-standard security controls
+  </Card>
+</CardGroup>
+
+## Why This Project Exists
+
+Web authentication is one of the most critical security components of any application, yet it's also one of the most commonly exploited attack surfaces. Many developers learn security concepts theoretically without seeing real-world code examples or understanding the practical impact of vulnerabilities.
+
+This project bridges that gap by providing:
+
+- **Real working code** that you can run, test, and modify
+- **Side-by-side comparisons** of vulnerable vs. secure implementations
+- **Hands-on exploitation** opportunities in a safe, controlled environment
+- **Clear documentation** explaining both the vulnerabilities and the fixes
+
+<Note>
+  This project is inspired by OWASP WebGoat and similar educational security tools, but focuses specifically on authentication and session management vulnerabilities common in Flask applications.
+</Note>
+
+## What You'll Learn
+
+Through this project, you'll gain hands-on experience with:
+
+### Critical Vulnerabilities
+
+<CardGroup cols={2}>
+  <Card title="SQL Injection" icon="database" href="/vulnerabilities/sql-injection">
+    Learn how attackers bypass authentication by manipulating SQL queries
+  </Card>
+  <Card title="Cross-Site Scripting (XSS)" icon="code" href="/vulnerabilities/xss">
+    Understand how malicious scripts can be injected into web pages
+  </Card>
+  <Card title="Insecure Direct Object Reference" icon="key" href="/vulnerabilities/idor">
+    Discover how improper access controls allow unauthorized data access
+  </Card>
+  <Card title="Password Storage Flaws" icon="lock-open" href="/vulnerabilities/password-storage">
+    See the dangers of storing passwords in plaintext or weak hashes
+  </Card>
+</CardGroup>
+
+### Security Best Practices
+
+For each vulnerability, you'll learn:
+
+- **How it works** - The technical details of the vulnerability
+- **How to exploit it** - Practical attack scenarios you can test
+- **Why it's dangerous** - Real-world impact and consequences
+- **How to fix it** - Proper secure coding practices
+- **How to prevent it** - Architecture and design patterns that eliminate the vulnerability class
+
+## Who This Is For
+
+<AccordionGroup>
+  <Accordion title="Web Developers" icon="code">
+    Learn secure coding practices and understand common pitfalls in authentication implementation. Perfect for developers working with Flask, Django, or similar web frameworks.
+  </Accordion>
+  
+  <Accordion title="Security Professionals" icon="user-shield">
+    Use this as a training tool for security awareness programs or as a hands-on lab environment for penetration testing practice.
+  </Accordion>
+  
+  <Accordion title="Students & Educators" icon="graduation-cap">
+    Excellent resource for cybersecurity courses, computer science programs, or self-directed learning about web security.
+  </Accordion>
+  
+  <Accordion title="CTF Participants" icon="flag">
+    Practice identifying and exploiting vulnerabilities in a legal, controlled environment before competing in Capture The Flag events.
+  </Accordion>
+</AccordionGroup>
+
+## Project Architecture
+
+The project consists of two Flask applications with identical functionality but vastly different security postures:
+
+```plaintext
+auth-security-demo/
+├── vulnerable/          # Insecure implementation
+│   ├── app.py          # Flask app with vulnerabilities
+│   ├── database.py     # Database setup (plaintext passwords)
+│   └── templates/      # HTML templates
+└── secure/             # Secure implementation
+    ├── app.py          # Flask app with security controls
+    ├── database.py     # Database setup (hashed passwords)
+    └── templates/      # HTML templates with output encoding
+```
+
+### Key Features Demonstrated
+
+**Vulnerable Version (`/vulnerable`):**
+- Direct SQL query concatenation (SQL Injection)
+- No output encoding (XSS)
+- Plaintext password storage
+- Missing access controls (IDOR)
+- Weak session management
+- No CSRF protection
+- Exposed error messages
+- Missing security headers
+
+**Secure Version (`/secure`):**
+- Parameterized SQL queries
+- Automatic output encoding with `escape()`
+- Bcrypt password hashing
+- Role-based access control
+- Secure session configuration
+- CSRF token validation
+- Generic error messages
+- Security HTTP headers
+
+<Tip>
+  The best way to learn is by comparing the code side-by-side. Each vulnerability page includes detailed code comparisons showing exactly what changes were needed to secure the application.
+</Tip>
+
+## Technology Stack
+
+This project uses modern Python web development tools:
+
+<CodeGroup>
+```python vulnerable/requirements.txt
+Flask==3.0.0
+python-dotenv==1.0.0
+gunicorn==21.2.0
+```
+
+```python secure/requirements.txt
+Flask==3.0.0
+python-dotenv==1.0.0
+gunicorn==21.2.0
+Werkzeug==3.0.0      # Password hashing
+Flask-WTF==1.2.1     # CSRF protection
+```
+</CodeGroup>
+
+- **Flask 3.0** - Lightweight Python web framework
+- **SQLite** - Embedded database for easy setup
+- **Werkzeug** - Password hashing utilities (secure version)
+- **Flask-WTF** - CSRF protection (secure version)
+- **MarkupSafe** - HTML escaping (secure version)
+
+## Learning Path
+
+We recommend following this learning path:
+
+<Steps>
+  <Step title="Read the Legal Notice">
+    Understand the ethical and legal boundaries before proceeding
+  </Step>
+  
+  <Step title="Set Up Your Environment">
+    Install both versions locally so you can experiment safely
+  </Step>
+  
+  <Step title="Start with SQL Injection">
+    Begin with the most critical vulnerability and learn the fundamentals
+  </Step>
+  
+  <Step title="Work Through Each Vulnerability">
+    Follow the vulnerability pages in order, testing each exploit
+  </Step>
+  
+  <Step title="Study the Secure Implementation">
+    Compare the code and understand how each fix works
+  </Step>
+  
+  <Step title="Apply to Your Projects">
+    Use the security best practices in your own applications
+  </Step>
+</Steps>
+
+## Community and Support
+
+This is an open-source educational project:
+
+- **GitHub Repository**: [auth-security-project](https://github.com/darkroot192-sudo/auth-security-project)
+- **Live Demos**: Try the vulnerable and secure versions online
+- **Contributions**: Pull requests and improvements are welcome
+- **Issues**: Report bugs or suggest new vulnerabilities to demonstrate
+
+<Warning>
+  The vulnerable version is intentionally insecure. Never use code from the vulnerable version in production applications. Always reference the secure version for real-world implementations.
+</Warning>
+
+## Ready to Get Started?
+
+<CardGroup cols={2}>
+  <Card title="Legal Notice" icon="scale-balanced" href="/legal-notice">
+    Read the important legal and ethical guidelines
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get both demos running in 5 minutes
+  </Card>
+</CardGroup>

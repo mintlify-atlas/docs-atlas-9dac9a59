@@ -1,80 +1,547 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quick Start'
+description: 'Get both vulnerable and secure demos running locally in 5 minutes'
+icon: 'rocket'
 ---
 
-## Get started in three steps
+<Info>
+  This guide will help you set up both the vulnerable and secure versions of the authentication demo on your local machine. Total setup time: **5 minutes**.
+</Info>
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Before you begin, ensure you have:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Python 3.8+" icon="python">
+    Check version: `python --version` or `python3 --version`
+  </Card>
+  <Card title="pip Package Manager" icon="box">
+    Usually comes with Python. Check: `pip --version`
+  </Card>
+  <Card title="Git" icon="git-alt">
+    For cloning the repository: `git --version`
+  </Card>
+  <Card title="Web Browser" icon="browser">
+    Chrome, Firefox, Safari, or Edge for testing
+  </Card>
 </CardGroup>
 
+<Warning>
+  **Important**: This project creates intentionally vulnerable applications. Only run them on your local machine, never expose them to the internet.
+</Warning>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    Open your terminal and clone the project:
+    
+    ```bash
+    git clone https://github.com/darkroot192-sudo/auth-security-project.git
+    cd auth-security-project
+    ```
+    
+    This downloads the complete project including both vulnerable and secure versions.
+  </Step>
+  
+  <Step title="Set Up the Vulnerable Version">
+    Navigate to the vulnerable directory and install dependencies:
+    
+    ```bash
+    cd vulnerable
+    pip install -r requirements.txt
+    ```
+    
+    Expected output:
+    ```plaintext
+    Collecting Flask==3.0.0
+    Collecting python-dotenv==1.0.0
+    Collecting gunicorn==21.2.0
+    ...
+    Successfully installed Flask-3.0.0 ...
+    ```
+    
+    <Tip>
+      On some systems, you may need to use `pip3` instead of `pip`.
+    </Tip>
+  </Step>
+  
+  <Step title="Initialize the Vulnerable Database">
+    Create the SQLite database with default users:
+    
+    ```bash
+    python database.py
+    ```
+    
+    Expected output:
+    ```plaintext
+    ✓ Base de datos vulnerable configurada (SQLite)
+    ```
+    
+    This creates `users.db` with two default accounts:
+    - **admin** / **admin123** (admin role)
+    - **usuario** / **password123** (user role)
+    
+    <Note>
+      Passwords are stored in **plaintext** in this version - this is intentional for educational purposes.
+    </Note>
+  </Step>
+  
+  <Step title="Start the Vulnerable Application">
+    Launch the Flask development server:
+    
+    ```bash
+    python app.py
+    ```
+    
+    Expected output:
+    ```plaintext
+    * Serving Flask app 'app'
+    * Debug mode: off
+    WARNING: This is a development server.
+    * Running on http://0.0.0.0:5000
+    ```
+    
+    Open your browser and navigate to:
+    ```
+    http://localhost:5000
+    ```
+    
+    You should see the vulnerable application's home page.
+  </Step>
+  
+  <Step title="Set Up the Secure Version">
+    Open a **new terminal window** (keep the vulnerable version running), then:
+    
+    ```bash
+    cd /path/to/auth-security-project/secure
+    pip install -r requirements.txt
+    ```
+    
+    This installs additional security packages:
+    - **Werkzeug** - For password hashing
+    - **Flask-WTF** - For CSRF protection
+  </Step>
+  
+  <Step title="Initialize the Secure Database">
+    Create the secure database with hashed passwords:
+    
+    ```bash
+    python database.py
+    ```
+    
+    Expected output:
+    ```plaintext
+    ✓ Base de datos segura configurada (SQLite)
+    ```
+    
+    Same default users, but passwords are now **bcrypt hashed**.
+  </Step>
+  
+  <Step title="Start the Secure Application">
+    Launch the secure version on a different port:
+    
+    ```bash
+    python app.py
+    ```
+    
+    Expected output:
+    ```plaintext
+    * Running on http://0.0.0.0:5001
+    ```
+    
+    Open another browser tab and navigate to:
+    ```
+    http://localhost:5001
+    ```
+    
+    You should see the secure application's home page.
+  </Step>
+</Steps>
+
+<Tip>
+  **Pro tip**: Use separate browser windows or profiles for each version to avoid session conflicts.
+</Tip>
+
+## Verify Installation
+
+Now you should have both applications running:
+
+<CardGroup cols={2}>
+  <Card title="Vulnerable Version" icon="unlock" color="#ef4444">
+    **URL**: http://localhost:5000
+    
+    **Port**: 5000
+    
+    **Purpose**: Testing vulnerabilities
+  </Card>
+  <Card title="Secure Version" icon="lock" color="#10b981">
+    **URL**: http://localhost:5001
+    
+    **Port**: 5001
+    
+    **Purpose**: Reference implementation
+  </Card>
+</CardGroup>
+
+### Quick Test
+
+Test that both applications are working:
+
+<CodeGroup>
+```bash Test Vulnerable Login
+curl -X POST http://localhost:5000/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=admin123"
+```
+
+```bash Test Secure Login
+curl -X POST http://localhost:5001/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=admin123"
+```
+</CodeGroup>
+
+Both should redirect to a dashboard page.
+
+## Default Credentials
+
+Both applications come with the same test accounts:
+
+| Username | Password | Role | Use Case |
+|----------|----------|------|----------|
+| `admin` | `admin123` | admin | Testing admin functions and privilege escalation |
+| `usuario` | `password123` | user | Testing standard user access and IDOR |
+
+<Warning>
+  These credentials are intentionally weak for educational purposes. Never use simple credentials like these in real applications.
+</Warning>
+
+## Your First Vulnerability Test
+
+Let's verify the vulnerable version has SQL injection:
+
+<Steps>
+  <Step title="Navigate to Vulnerable Login">
+    Open http://localhost:5000/login in your browser
+  </Step>
+  
+  <Step title="Try SQL Injection Payload">
+    Enter these credentials:
+    
+    - **Username**: `admin`
+    - **Password**: `x' OR '1'='1`
+    
+    <Note>
+      The password field contains a SQL injection payload that will bypass authentication.
+    </Note>
+  </Step>
+  
+  <Step title="Click Login">
+    Click the login button. If successful, you'll be logged in as admin without knowing the real password!
+    
+    Check the terminal where the vulnerable app is running - you'll see the malformed SQL query:
+    
+    ```sql
+    Query ejecutada: SELECT * FROM users WHERE username = 'admin' AND password = 'x' OR '1'='1'
+    ```
+  </Step>
+  
+  <Step title="Try the Same on Secure Version">
+    Now try the exact same payload on http://localhost:5001/login
+    
+    Result: Login fails with "Credenciales incorrectas"
+    
+    The secure version uses parameterized queries, so the SQL injection is prevented.
+  </Step>
+</Steps>
+
+<Tip>
+  Congratulations! You've just performed your first SQL injection in a safe, legal environment. Now explore the other vulnerabilities.
+</Tip>
+
+## Application Features
+
+Both versions include these pages:
+
+<AccordionGroup>
+  <Accordion title="Home Page (/)" icon="house">
+    Landing page with links to login and registration
+  </Accordion>
+  
+  <Accordion title="Login (/login)" icon="right-to-bracket">
+    Authentication page - vulnerable version has SQL injection
+  </Accordion>
+  
+  <Accordion title="Register (/register)" icon="user-plus">
+    Create new user accounts
+  </Accordion>
+  
+  <Accordion title="Dashboard (/dashboard)" icon="gauge">
+    Protected page after login - vulnerable version has XSS
+  </Accordion>
+  
+  <Accordion title="Profile (/profile)" icon="user">
+    User profile page - vulnerable version has IDOR
+  </Accordion>
+  
+  <Accordion title="Logout (/logout)" icon="right-from-bracket">
+    End session and clear cookies
+  </Accordion>
+</AccordionGroup>
+
+## Project Structure
+
+Understand the codebase layout:
+
+```plaintext
+auth-security-project/
+├── vulnerable/              # Insecure implementation
+│   ├── app.py              # Main Flask application (175 lines)
+│   ├── database.py         # Database setup - plaintext passwords
+│   ├── users.db            # SQLite database (auto-generated)
+│   ├── requirements.txt    # Python dependencies
+│   └── templates/          # HTML templates
+│       ├── index.html
+│       ├── login.html
+│       ├── register.html
+│       ├── dashboard.html  # XSS vulnerable
+│       └── profile.html    # IDOR vulnerable
+│
+├── secure/                 # Secure implementation
+│   ├── app.py             # Main Flask application (191 lines)
+│   ├── database.py        # Database setup - hashed passwords
+│   ├── users.db           # SQLite database (auto-generated)
+│   ├── requirements.txt   # Python dependencies + security libs
+│   └── templates/         # HTML templates with encoding
+│
+└── README.md              # Project documentation
+```
+
+### Key Files to Study
+
+<CodeGroup>
+```python vulnerable/app.py (Line 26)
+# VULNERABLE: SQL Injection
+query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+cursor.execute(query)
+```
+
+```python secure/app.py (Line 55)
+# SECURE: Parameterized query
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))
+```
+</CodeGroup>
+
+<Info>
+  The main differences between versions are in `app.py` (application logic) and `database.py` (password storage). Compare them side-by-side to learn.
+</Info>
+
+## Using Virtual Environments (Recommended)
+
+For cleaner Python package management, use virtual environments:
+
+<Steps>
+  <Step title="Create Virtual Environment">
+    ```bash
+    python -m venv venv
+    ```
+  </Step>
+  
+  <Step title="Activate Virtual Environment">
+    <CodeGroup>
+    ```bash Linux/Mac
+    source venv/bin/activate
+    ```
+    
+    ```bash Windows
+    venv\Scripts\activate
+    ```
+    </CodeGroup>
+    
+    Your prompt should change to show `(venv)`.
+  </Step>
+  
+  <Step title="Install Dependencies">
+    ```bash
+    cd vulnerable
+    pip install -r requirements.txt
+    ```
+    
+    Packages are now isolated to this virtual environment.
+  </Step>
+  
+  <Step title="Deactivate When Done">
+    ```bash
+    deactivate
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port Already in Use" icon="circle-exclamation">
+    Error: `Address already in use`
+    
+    **Solution**: Change the port in the code or kill the process:
+    
+    ```bash
+    # Find process using port 5000
+    lsof -i :5000
+    
+    # Kill it
+    kill -9 <PID>
+    
+    # Or run on different port
+    python app.py --port 5002
+    ```
+  </Accordion>
+  
+  <Accordion title="Module Not Found" icon="circle-exclamation">
+    Error: `ModuleNotFoundError: No module named 'flask'`
+    
+    **Solution**: Install requirements:
+    
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
+    Make sure you're in the correct directory (vulnerable/ or secure/).
+  </Accordion>
+  
+  <Accordion title="Database Locked" icon="circle-exclamation">
+    Error: `sqlite3.OperationalError: database is locked`
+    
+    **Solution**: Close any other connections to the database:
+    
+    ```bash
+    # Stop the Flask app
+    # Delete the database
+    rm users.db
+    
+    # Recreate it
+    python database.py
+    ```
+  </Accordion>
+  
+  <Accordion title="Permission Denied" icon="circle-exclamation">
+    Error: `Permission denied` when running scripts
+    
+    **Solution**: Check file permissions or use `python3`:
+    
+    ```bash
+    chmod +x app.py
+    # Or
+    python3 app.py
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have both applications running:
+
+<CardGroup cols={2}>
+  <Card title="SQL Injection" icon="database" href="/vulnerabilities/sql-injection">
+    Start with the most critical vulnerability
+  </Card>
+  <Card title="Cross-Site Scripting" icon="code" href="/vulnerabilities/xss">
+    Learn about XSS attacks and prevention
+  </Card>
+  <Card title="IDOR" icon="key" href="/vulnerabilities/idor">
+    Test unauthorized data access
+  </Card>
+  <Card title="Password Storage" icon="lock" href="/vulnerabilities/password-storage">
+    See why plaintext passwords are dangerous
+  </Card>
+</CardGroup>
+
+<Tip>
+  Keep both applications running in separate terminal windows so you can quickly switch between them for comparison.
+</Tip>
+
+## Running on Different Ports
+
+If you need to change the default ports:
+
+<CodeGroup>
+```python vulnerable/app.py (Line 119)
+if __name__ == '__main__':
+    import os
+    app.run(host='0.0.0.0', 
+            port=int(os.environ.get('PORT', 5000)),
+            debug=False)
+```
+
+```bash Using Environment Variable
+# Run on port 8080 instead
+PORT=8080 python app.py
+```
+</CodeGroup>
+
+## Stopping the Applications
+
+To stop the Flask servers:
+
+- Press `Ctrl+C` in each terminal window
+- Or close the terminal windows
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  The SQLite database files (`users.db`) persist after stopping. Delete them and re-run `python database.py` to reset to default state.
 </Note>
+
+## Using with Docker (Advanced)
+
+For isolated container environments:
+
+```dockerfile Dockerfile.vulnerable
+FROM python:3.11-slim
+WORKDIR /app
+COPY vulnerable/requirements.txt .
+RUN pip install -r requirements.txt
+COPY vulnerable/ .
+RUN python database.py
+EXPOSE 5000
+CMD ["python", "app.py"]
+```
+
+```bash Build and Run
+# Build image
+docker build -f Dockerfile.vulnerable -t auth-vulnerable .
+
+# Run container
+docker run -p 5000:5000 auth-vulnerable
+```
+
+<Info>
+  Docker setup is optional. The standard Python installation works great for learning.
+</Info>
+
+## Ready to Exploit?
+
+You now have a complete lab environment. Time to learn by doing:
+
+<Steps>
+  <Step title="Study the Vulnerability">
+    Read the documentation for each vulnerability type
+  </Step>
+  
+  <Step title="Test on Vulnerable Version">
+    Try the exploits on http://localhost:5000
+  </Step>
+  
+  <Step title="Verify Fix on Secure Version">
+    Confirm the same exploit fails on http://localhost:5001
+  </Step>
+  
+  <Step title="Read the Code">
+    Compare the source code to understand the differences
+  </Step>
+</Steps>
+
+<Card title="Start Learning" icon="graduation-cap" href="/vulnerabilities/sql-injection">
+  Begin with SQL Injection - the most critical web vulnerability
+</Card>

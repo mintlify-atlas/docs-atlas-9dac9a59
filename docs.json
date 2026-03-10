@@ -1,122 +1,96 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Auth Security Demo",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#94cb04",
+    "light": "#545454",
+    "dark": "#94cb04"
   },
-  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo.png",
+    "dark": "/logo.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/darkroot192-sudo/auth-security-project"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/darkroot192-sudo/auth-security-project"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "legal-notice",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Vulnerabilities",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "vulnerabilities/sql-injection",
+              "vulnerabilities/xss",
+              "vulnerabilities/idor",
+              "vulnerabilities/password-storage",
+              "vulnerabilities/session-management",
+              "vulnerabilities/csrf",
+              "vulnerabilities/security-misconfiguration",
+              "vulnerabilities/sensitive-data-exposure"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Security Best Practices",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "security/secure-authentication",
+              "security/input-validation",
+              "security/output-encoding",
+              "security/access-control",
+              "security/security-headers",
+              "security/secure-configuration"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Lab Setup",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "setup/installation",
+              "setup/running-demos",
+              "setup/testing-vulnerabilities",
+              "setup/troubleshooting"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Code Reference",
             "pages": [
-              "api-reference/introduction"
+              "reference/vulnerable-code",
+              "reference/secure-code",
+              "reference/code-comparison"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Resources",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "reference/owasp-top-10",
+              "reference/cwe-references",
+              "reference/further-reading"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,328 @@
+---
+title: 'Legal Notice'
+description: 'Important legal and ethical guidelines for using this educational security project'
+icon: 'scale-balanced'
+---
+
+<Warning>
+  **READ THIS CAREFULLY BEFORE PROCEEDING**
+  
+  This project contains intentionally vulnerable code for educational purposes only. Misuse of the techniques demonstrated here can result in serious legal consequences.
+</Warning>
+
+## Educational Purpose Only
+
+The Auth Security Demo project is designed exclusively for:
+
+<CardGroup cols={2}>
+  <Card title="Learning Environments" icon="book-open" color="#10b981">
+    Personal study and skill development in controlled settings
+  </Card>
+  <Card title="Authorized Testing" icon="clipboard-check" color="#10b981">
+    Security testing on systems you own or have explicit written permission to test
+  </Card>
+  <Card title="CTF Competitions" icon="flag" color="#10b981">
+    Legitimate Capture The Flag events and security challenges
+  </Card>
+  <Card title="Academic Research" icon="flask" color="#10b981">
+    University courses and authorized security research programs
+  </Card>
+</CardGroup>
+
+## Prohibited Uses
+
+<Warning>
+  **NEVER use these techniques on:**
+</Warning>
+
+- Production systems or live websites without explicit authorization
+- Systems owned by third parties without written permission
+- Any system where you don't have legal authority to test
+- School, university, or employer networks without IT department approval
+- Any system to cause harm, steal data, or disrupt services
+
+### Why This Matters
+
+Unauthorized access to computer systems is illegal under laws including:
+
+- **United States**: Computer Fraud and Abuse Act (CFAA) - 18 U.S.C. § 1030
+- **European Union**: Network and Information Security Directive (NIS)
+- **United Kingdom**: Computer Misuse Act 1990
+- **International**: Council of Europe Convention on Cybercrime (Budapest Convention)
+
+<Info>
+  Even "just looking" or "harmless testing" without authorization is illegal in most jurisdictions. The law doesn't distinguish between malicious intent and curiosity.
+</Info>
+
+## Legal Consequences of Misuse
+
+Unauthorized use of security exploitation techniques can result in:
+
+### Criminal Penalties
+
+<AccordionGroup>
+  <Accordion title="Federal Charges" icon="gavel">
+    Under the Computer Fraud and Abuse Act (CFAA), unauthorized access can result in:
+    - **First offense**: Up to 1 year imprisonment and fines
+    - **Repeat offense**: Up to 10 years imprisonment
+    - **With intent to defraud**: Up to 5-10 years per count
+    - **Causing damage**: Up to 20 years imprisonment
+  </Accordion>
+  
+  <Accordion title="Civil Liability" icon="file-invoice-dollar">
+    Victims can sue for damages including:
+    - Economic losses from downtime or data breaches
+    - Cost of incident response and forensics
+    - Punitive damages for intentional acts
+    - Legal fees and court costs
+    
+    Civil damages can reach millions of dollars in serious cases.
+  </Accordion>
+  
+  <Accordion title="Professional Consequences" icon="briefcase">
+    Beyond legal penalties:
+    - Permanent criminal record
+    - Loss of security clearances
+    - Termination from employment
+    - Expulsion from educational institutions
+    - Difficulty finding future employment in technology
+  </Accordion>
+</AccordionGroup>
+
+### Real-World Examples
+
+<Note>
+  These are real cases where individuals faced legal consequences for unauthorized security testing:
+</Note>
+
+**Case 1: Andrew Auernheimer ("weev")**
+- Discovered AT&T iPad security flaw
+- Accessed publicly available data
+- Convicted under CFAA (later overturned on jurisdictional grounds)
+- Served 1 year in federal prison
+
+**Case 2: Aaron Swartz**
+- Downloaded academic articles from JSTOR
+- Faced 13 felony counts and up to 35 years in prison
+- Tragic case highlighting prosecutorial overreach
+
+**Case 3: David Nosal**
+- Former employee accessed old employer's systems
+- Convicted under CFAA
+- Sentenced to 1 year in prison plus restitution
+
+<Warning>
+  Even if you discover a vulnerability accidentally, how you proceed matters. Report it responsibly through proper channels, never exploit it further.
+</Warning>
+
+## Responsible Disclosure
+
+If you discover a real vulnerability in a production system:
+
+<Steps>
+  <Step title="Stop Testing Immediately">
+    Do not exploit the vulnerability further or access additional data
+  </Step>
+  
+  <Step title="Document What You Found">
+    Take notes on the vulnerability but don't include sensitive data
+  </Step>
+  
+  <Step title="Report Through Proper Channels">
+    - Look for a security.txt file or bug bounty program
+    - Contact the organization's security team directly
+    - Use platforms like HackerOne or Bugcrowd if available
+  </Step>
+  
+  <Step title="Give Reasonable Time to Fix">
+    Allow 90 days for remediation before public disclosure (industry standard)
+  </Step>
+</Steps>
+
+### Responsible Disclosure Resources
+
+- **CERT Coordination Center**: [cert.org](https://www.cert.org/)
+- **HackerOne Platform**: [hackerone.com](https://www.hackerone.com/)
+- **Bugcrowd Platform**: [bugcrowd.com](https://www.bugcrowd.com/)
+- **Security.txt Standard**: [securitytxt.org](https://securitytxt.org/)
+
+## Authorized Testing Guidelines
+
+If you want to practice security testing legally:
+
+### Use This Project
+
+<Tip>
+  **The safest option**: This project is specifically designed for you to exploit. Run it locally and test freely.
+</Tip>
+
+```bash
+# Run the vulnerable version locally
+cd vulnerable
+python database.py  # Set up the database
+python app.py      # Start the server
+
+# Now test all vulnerabilities safely on http://localhost:5000
+```
+
+### Other Legal Practice Environments
+
+<CardGroup cols={2}>
+  <Card title="HackTheBox" icon="cube" href="https://www.hackthebox.com">
+    Legal penetration testing labs and challenges
+  </Card>
+  <Card title="TryHackMe" icon="laptop-code" href="https://tryhackme.com">
+    Guided cybersecurity training rooms
+  </Card>
+  <Card title="OWASP WebGoat" icon="shield" href="https://owasp.org/www-project-webgoat/">
+    Deliberately insecure application for learning
+  </Card>
+  <Card title="PentesterLab" icon="flask-vial" href="https://pentesterlab.com">
+    Hands-on penetration testing exercises
+  </Card>
+</CardGroup>
+
+### Getting Written Authorization
+
+If you want to test a real system, you need:
+
+<CodeGroup>
+```text Minimum Authorization Requirements
+1. Written permission from the legal owner/operator
+2. Clearly defined scope of testing
+3. Specific time window for testing
+4. Contact information for emergencies
+5. Agreement on findings disclosure
+```
+
+```text Example Authorization (DO NOT use as legal document)
+I, [System Owner], authorize [Your Name] to perform
+security testing on [specific systems/URLs] between
+[start date] and [end date] for the purpose of
+identifying security vulnerabilities.
+
+Scope: [specific systems, IP ranges, or domains]
+Out of scope: [restricted areas]
+Emergency contact: [phone/email]
+
+Signed: _________________  Date: __________
+```
+</CodeGroup>
+
+<Warning>
+  Consult a lawyer to create proper authorization documents. This example is not legal advice.
+</Warning>
+
+## Ethical Hacking Principles
+
+If you pursue a career in security, follow these ethical principles:
+
+### The Hacker's Code of Ethics
+
+1. **Respect privacy** - Only access data necessary for testing
+2. **Minimize harm** - Don't destroy, modify, or steal data
+3. **Report responsibly** - Disclose vulnerabilities to help fix them
+4. **Obtain authorization** - Always get permission before testing
+5. **Improve security** - Use your skills to make systems safer
+6. **Continuous learning** - Stay updated on both attacks and defenses
+7. **Share knowledge** - Educate others about security (legally)
+
+<Info>
+  Many cybersecurity professionals hold certifications like CEH (Certified Ethical Hacker), OSCP (Offensive Security Certified Professional), or GPEN (GIAC Penetration Tester) that require adherence to ethical codes.
+</Info>
+
+## Project Liability Disclaimer
+
+<Warning>
+  **DISCLAIMER OF LIABILITY**
+</Warning>
+
+The creators and contributors of this project:
+
+- Provide this code "as is" for educational purposes only
+- Make no warranties about completeness, reliability, or accuracy
+- Are not responsible for any damages resulting from use or misuse
+- Do not endorse or encourage illegal activities
+- Assume no liability for actions taken by users of this project
+
+By using this project, you agree:
+
+- To use it only for lawful educational purposes
+- To comply with all applicable laws and regulations
+- That you are solely responsible for your actions
+- To indemnify the project creators against any claims arising from your use
+
+<Note>
+  This project is licensed under the MIT License. See the LICENSE file for full legal terms.
+</Note>
+
+## For Educators
+
+If you're using this project in an educational setting:
+
+### Recommendations
+
+<Steps>
+  <Step title="Review Legal Requirements">
+    Ensure your institution's policies allow security training tools
+  </Step>
+  
+  <Step title="Use Isolated Networks">
+    Run demonstrations on segregated lab networks, not production infrastructure
+  </Step>
+  
+  <Step title="Emphasize Ethics First">
+    Start with legal and ethical training before technical content
+  </Step>
+  
+  <Step title="Monitor Student Activity">
+    Ensure students only test on the provided lab environment
+  </Step>
+  
+  <Step title="Document Everything">
+    Keep records of training materials and student acknowledgments
+  </Step>
+</Steps>
+
+### Sample Student Agreement
+
+<Info>
+  Consider having students sign an acceptable use policy before accessing security training materials.
+</Info>
+
+## Questions About Legality?
+
+If you're unsure whether a particular activity is legal:
+
+<CardGroup cols={2}>
+  <Card title="DON'T DO IT" icon="ban" color="#ef4444">
+    When in doubt, don't test on the system
+  </Card>
+  <Card title="ASK FIRST" icon="question" color="#f59e0b">
+    Seek legal advice or explicit authorization
+  </Card>
+  <Card title="USE THIS PROJECT" icon="shield-check" color="#10b981">
+    Practice safely on this intentionally vulnerable application
+  </Card>
+  <Card title="REPORT RESPONSIBLY" icon="flag" color="#3b82f6">
+    If you find something, report it through proper channels
+  </Card>
+</CardGroup>
+
+<Warning>
+  "I was just testing" or "I was trying to help" are not valid legal defenses. Always obtain explicit authorization before security testing.
+</Warning>
+
+## Acknowledgment
+
+By proceeding with this project, you acknowledge that:
+
+- You have read and understood this legal notice
+- You will use this project only for lawful educational purposes
+- You understand the legal and ethical responsibilities of security testing
+- You will not use these techniques on unauthorized systems
+- You accept full responsibility for your actions
+
+<Card title="Ready to proceed?" icon="rocket" href="/quickstart">
+  Continue to the Quick Start guide to set up your local lab environment
+</Card>

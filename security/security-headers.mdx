@@ -1,0 +1,459 @@
+---
+title: Security Headers
+description: Configure HTTP security headers to protect against common attacks
+icon: helmet-safety
+---
+
+## Overview
+
+Security headers are HTTP response headers that provide defense-in-depth protection against common web vulnerabilities. This guide demonstrates the security headers implementation from the secure application.
+
+## Why Security Headers Matter
+
+<CardGroup cols={2}>
+  <Card title="Defense in Depth" icon="shield-halved">
+    Additional protection layer even if other defenses fail.
+  </Card>
+  
+  <Card title="Browser Security" icon="browser">
+    Leverage browser security features to protect users.
+  </Card>
+  
+  <Card title="XSS Prevention" icon="code">
+    Restrict script execution to prevent XSS attacks.
+  </Card>
+  
+  <Card title="Clickjacking Protection" icon="window-maximize">
+    Prevent your site from being embedded in malicious frames.
+  </Card>
+</CardGroup>
+
+## Implementation in Flask
+
+Set security headers globally using Flask's `after_request` decorator:
+
+```python secure/app.py
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
+```
+
+<Note>
+  The `@app.after_request` decorator ensures these headers are added to every response automatically.
+</Note>
+
+## Essential Security Headers
+
+### X-Content-Type-Options
+
+Prevents MIME-type sniffing attacks by forcing browsers to respect declared content types.
+
+```python
+response.headers['X-Content-Type-Options'] = 'nosniff'
+```
+
+<CardGroup cols={2}>
+  <Card title="What it prevents" icon="shield">
+    Stops browsers from interpreting files as a different MIME type than declared.
+  </Card>
+  
+  <Card title="Attack scenario" icon="bug">
+    Attacker uploads image.jpg containing JavaScript; browser might execute it without this header.
+  </Card>
+</CardGroup>
+
+### X-Frame-Options
+
+Protects against clickjacking attacks by controlling whether your site can be embedded in frames.
+
+```python
+response.headers['X-Frame-Options'] = 'DENY'
+```
+
+<Steps>
+  <Step title="DENY">
+    Completely prevents page from being displayed in a frame:
+    ```python
+    response.headers['X-Frame-Options'] = 'DENY'
+    ```
+  </Step>
+  
+  <Step title="SAMEORIGIN">
+    Allows framing only by same domain:
+    ```python
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    ```
+  </Step>
+  
+  <Step title="ALLOW-FROM (deprecated)">
+    Legacy option to specify allowed domains (use CSP frame-ancestors instead).
+  </Step>
+</Steps>
+
+<Info>
+  Use `DENY` for maximum protection unless you need to embed your site in iframes on your own domain.
+</Info>
+
+### X-XSS-Protection
+
+Enables browser's built-in XSS filtering (legacy header, but still useful for older browsers).
+
+```python
+response.headers['X-XSS-Protection'] = '1; mode=block'
+```
+
+**Values:**
+- `0`: Disables XSS filtering
+- `1`: Enables XSS filtering
+- `1; mode=block`: Blocks page rendering if XSS detected
+
+<Note>
+  Modern browsers rely on Content-Security-Policy instead, but this header provides fallback protection.
+</Note>
+
+### Strict-Transport-Security (HSTS)
+
+Forces browsers to use HTTPS connections only, preventing downgrade attacks.
+
+```python
+response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+```
+
+<CardGroup cols={3}>
+  <Card title="max-age" icon="clock">
+    Time (seconds) browser should remember to only use HTTPS:
+    ```
+    max-age=31536000
+    ```
+    (1 year)
+  </Card>
+  
+  <Card title="includeSubDomains" icon="sitemap">
+    Apply HSTS to all subdomains:
+    ```
+    includeSubDomains
+    ```
+  </Card>
+  
+  <Card title="preload" icon="bolt">
+    Opt-in to HSTS preload list:
+    ```
+    preload
+    ```
+  </Card>
+</CardGroup>
+
+<Tip>
+  Start with a short max-age (e.g., 300 seconds) for testing, then increase to 31536000 (1 year) for production.
+</Tip>
+
+### Content-Security-Policy (CSP)
+
+The most powerful security header - controls which resources can be loaded and executed.
+
+```python
+response.headers['Content-Security-Policy'] = "default-src 'self'"
+```
+
+This basic policy only allows resources from the same origin.
+
+## Content Security Policy Deep Dive
+
+### CSP Directives
+
+<CardGroup cols={2}>
+  <Card title="default-src" icon="globe">
+    Fallback for all resource types:
+    ```
+    default-src 'self'
+    ```
+  </Card>
+  
+  <Card title="script-src" icon="code">
+    Control JavaScript sources:
+    ```
+    script-src 'self' https://cdn.example.com
+    ```
+  </Card>
+  
+  <Card title="style-src" icon="palette">
+    Control CSS sources:
+    ```
+    style-src 'self' 'unsafe-inline'
+    ```
+  </Card>
+  
+  <Card title="img-src" icon="image">
+    Control image sources:
+    ```
+    img-src 'self' data: https:
+    ```
+  </Card>
+  
+  <Card title="connect-src" icon="plug">
+    Control AJAX/WebSocket sources:
+    ```
+    connect-src 'self' https://api.example.com
+    ```
+  </Card>
+  
+  <Card title="frame-ancestors" icon="window-maximize">
+    Control who can frame your site:
+    ```
+    frame-ancestors 'none'
+    ```
+  </Card>
+</CardGroup>
+
+### Basic CSP Example
+
+```python
+@app.after_request
+def set_security_headers(response):
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    return response
+```
+
+### Strict CSP Configuration
+
+For maximum security (blocks all inline scripts and styles):
+
+```python
+csp = (
+    "default-src 'none'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "img-src 'self'; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'"
+)
+response.headers['Content-Security-Policy'] = csp
+```
+
+<Info>
+  This strict policy requires moving all inline JavaScript and CSS to external files.
+</Info>
+
+### CSP with CDNs
+
+If using external resources like Bootstrap or jQuery:
+
+```python
+csp = (
+    "default-src 'self'; "
+    "script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com; "
+    "style-src 'self' https://cdn.jsdelivr.net; "
+    "font-src 'self' https://cdn.jsdelivr.net; "
+    "img-src 'self' data: https:; "
+)
+response.headers['Content-Security-Policy'] = csp
+```
+
+<Tip>
+  Only whitelist trusted CDNs and use Subresource Integrity (SRI) hashes for additional security.
+</Tip>
+
+## Additional Security Headers
+
+### Referrer-Policy
+
+Controls how much referrer information is sent with requests:
+
+```python
+response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+```
+
+**Common values:**
+- `no-referrer`: Never send referrer
+- `same-origin`: Send only for same-origin requests
+- `strict-origin-when-cross-origin`: Send origin only for cross-origin
+
+### Permissions-Policy
+
+Controls which browser features can be used:
+
+```python
+response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+```
+
+<Note>
+  This header replaced the older Feature-Policy header.
+</Note>
+
+## Complete Security Headers Implementation
+
+```python secure/app.py
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.after_request
+def set_security_headers(response):
+    # Prevent MIME sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    
+    # Enable XSS filter (legacy browsers)
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Force HTTPS
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # Content Security Policy
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    
+    # Control referrer information
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # Disable unnecessary browser features
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    
+    return response
+```
+
+## Testing Security Headers
+
+Verify headers are set correctly using curl:
+
+```bash
+curl -I https://yourapp.com
+```
+
+Expected output:
+```
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Content-Security-Policy: default-src 'self'
+```
+
+<Tip>
+  Use online tools like [securityheaders.com](https://securityheaders.com) to analyze your security headers.
+</Tip>
+
+## CSP Reporting
+
+Monitor CSP violations by adding report-uri:
+
+```python
+csp = (
+    "default-src 'self'; "
+    "report-uri /csp-violation-report"
+)
+response.headers['Content-Security-Policy'] = csp
+```
+
+Create an endpoint to receive reports:
+
+```python
+@app.route('/csp-violation-report', methods=['POST'])
+def csp_report():
+    report = request.get_json()
+    # Log the violation
+    app.logger.warning(f'CSP Violation: {report}')
+    return '', 204
+```
+
+<Info>
+  CSP reporting helps identify violations without blocking resources during development.
+</Info>
+
+## Security Headers Best Practices
+
+<Steps>
+  <Step title="Start with report-only mode">
+    Test CSP without breaking functionality:
+    ```python
+    response.headers['Content-Security-Policy-Report-Only'] = csp
+    ```
+  </Step>
+  
+  <Step title="Use strict policies">
+    Start strict and relax only when necessary, not the other way around.
+  </Step>
+  
+  <Step title="Test thoroughly">
+    Verify headers don't break legitimate functionality in all browsers.
+  </Step>
+  
+  <Step title="Monitor violations">
+    Set up CSP reporting to catch issues in production.
+  </Step>
+  
+  <Step title="Keep updated">
+    Security header recommendations evolve; review configuration regularly.
+  </Step>
+</Steps>
+
+## Common Pitfalls
+
+<CardGroup cols={2}>
+  <Card title="'unsafe-inline' in CSP" icon="xmark" color="#ef4444">
+    Avoid `'unsafe-inline'` for script-src as it defeats XSS protection.
+  </Card>
+  
+  <Card title="Missing HSTS on subdomains" icon="exclamation-triangle" color="#f59e0b">
+    Use `includeSubDomains` to protect all subdomains.
+  </Card>
+  
+  <Card title="Too permissive CSP" icon="unlock" color="#ef4444">
+    Don't use `*` or `https:` unless absolutely necessary.
+  </Card>
+  
+  <Card title="Not testing headers" icon="flask" color="#f59e0b">
+    Always verify headers are actually being set in responses.
+  </Card>
+</CardGroup>
+
+## Framework-Specific Helpers
+
+For easier header management, consider using Flask-Talisman:
+
+```python
+from flask import Flask
+from flask_talisman import Talisman
+
+app = Flask(__name__)
+
+# Automatically sets secure headers
+Talisman(app, 
+    force_https=True,
+    strict_transport_security=True,
+    content_security_policy={
+        'default-src': "'self'"
+    }
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Output Encoding" icon="shield-halved" href="/security/output-encoding">
+    Learn about XSS prevention through output encoding
+  </Card>
+  
+  <Card title="Secure Configuration" icon="gear" href="/security/secure-configuration">
+    Configure your application securely
+  </Card>
+</CardGroup>

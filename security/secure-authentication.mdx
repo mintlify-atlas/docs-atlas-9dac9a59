@@ -1,0 +1,210 @@
+---
+title: Secure Authentication
+description: Best practices for implementing secure authentication in your application
+icon: shield-check
+---
+
+## Overview
+
+Secure authentication is the foundation of application security. This guide demonstrates best practices based on the secure implementation in the Auth Security Demo.
+
+## Password Security
+
+### Password Hashing with Werkzeug
+
+Never store passwords in plain text. Always use strong hashing algorithms like bcrypt.
+
+<Steps>
+  <Step title="Install Werkzeug">
+    Werkzeug provides secure password hashing utilities:
+    
+    ```bash
+    pip install Werkzeug==3.0.0
+    ```
+  </Step>
+  
+  <Step title="Hash passwords during registration">
+    Use `generate_password_hash()` to securely hash passwords:
+    
+    ```python secure/app.py
+    from werkzeug.security import generate_password_hash
+    
+    # During registration
+    password = request.form.get('password', '')
+    hashed_password = generate_password_hash(password)
+    
+    # Store hashed_password in database
+    query = "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)"
+    cursor.execute(query, (username, hashed_password, email))
+    ```
+  </Step>
+  
+  <Step title="Verify passwords during login">
+    Use `check_password_hash()` to verify credentials:
+    
+    ```python secure/app.py
+    from werkzeug.security import check_password_hash
+    
+    # During login
+    query = "SELECT * FROM users WHERE username = %s"
+    cursor.execute(query, (username,))
+    user = cursor.fetchone()
+    
+    if user and check_password_hash(user['password'], password):
+        # Login successful
+        session['user_id'] = user['id']
+        session['username'] = user['username']
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  Werkzeug's `generate_password_hash()` uses pbkdf2:sha256 by default, which is secure and recommended for most applications.
+</Note>
+
+## Session Management
+
+### Secure Session Configuration
+
+Proper session management prevents session hijacking and fixation attacks.
+
+```python secure/app.py
+import os
+from flask import Flask, session
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+# Use a strong, random secret key from environment variables
+app.secret_key = os.getenv('SECRET_KEY')
+```
+
+<CardGroup cols={2}>
+  <Card title="Session Storage" icon="database">
+    Store minimal user data in sessions:
+    - User ID
+    - Username
+    - Role/permissions
+  </Card>
+  
+  <Card title="Session Validation" icon="check-circle">
+    Always validate session data:
+    - Check if user_id exists
+    - Verify user still has access
+    - Validate role permissions
+  </Card>
+</CardGroup>
+
+### Session Creation Example
+
+```python secure/app.py
+if user and check_password_hash(user['password'], password):
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    session['role'] = user['role']
+    session.permanent = True  # Use permanent session cookies
+    flash('Login exitoso!', 'success')
+    return redirect('/dashboard')
+```
+
+## Authentication Checks
+
+### Protecting Routes
+
+Always verify authentication before allowing access to protected resources.
+
+```python secure/app.py
+@app.route('/dashboard')
+def dashboard():
+    # Verify user is authenticated
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         role=session.get('role'))
+```
+
+<Tip>
+  For production applications, consider creating a decorator like `@login_required` to avoid repeating authentication checks in every route.
+</Tip>
+
+## Login Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Generic Error Messages" icon="exclamation-triangle">
+    Use generic messages like "Invalid credentials" instead of "User not found" or "Wrong password" to prevent username enumeration.
+  </Card>
+  
+  <Card title="Rate Limiting" icon="clock">
+    Implement rate limiting to prevent brute-force attacks on login endpoints.
+  </Card>
+  
+  <Card title="Secure Logout" icon="right-from-bracket">
+    Clear all session data on logout to prevent session reuse.
+  </Card>
+  
+  <Card title="Password Requirements" icon="key">
+    Enforce minimum password length and complexity requirements during registration.
+  </Card>
+</CardGroup>
+
+### Secure Logout Implementation
+
+```python secure/app.py
+@app.route('/logout')
+def logout():
+    session.clear()  # Clear all session data
+    flash('Sesión cerrada correctamente', 'success')
+    return redirect('/')
+```
+
+## Password Requirements
+
+Enforce strong password policies during registration:
+
+```python secure/app.py
+if len(password) < 6:
+    flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+    return render_template('register.html')
+```
+
+<Info>
+  Consider implementing more robust password validation:
+  - Minimum 8-12 characters
+  - Mix of uppercase and lowercase letters
+  - At least one number and special character
+  - Check against common password lists
+</Info>
+
+## Environment Variables
+
+Store sensitive configuration in environment variables, never in code:
+
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+app.secret_key = os.getenv('SECRET_KEY')
+database_url = os.getenv('DATABASE_URL')
+```
+
+<Note>
+  Generate strong secret keys using: `python -c "import secrets; print(secrets.token_hex(32))"`
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Input Validation" icon="filter" href="/security/input-validation">
+    Learn about validating and sanitizing user input
+  </Card>
+  
+  <Card title="Access Control" icon="lock" href="/security/access-control">
+    Implement proper authorization checks
+  </Card>
+</CardGroup>

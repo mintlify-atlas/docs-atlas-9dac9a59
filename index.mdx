@@ -1,97 +1,143 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Auth Security Demo
+description: Learn web security through hands-on demonstrations of common vulnerabilities and their secure implementations
 ---
 
-## Setting up
+<div className="bg-gradient-to-r from-[#94cb04] to-[#27b39c] text-white rounded-lg p-12 mb-8">
+  <h1 className="text-5xl font-bold mb-4">Auth Security Demo</h1>
+  <p className="text-xl mb-6">
+    Educational web security demonstration project showcasing common vulnerabilities and their secure implementations in Flask applications
+  </p>
+  <div className="flex gap-4">
+    <a href="/quickstart" className="bg-white text-[#1a1a1a] px-6 py-3 rounded-md font-semibold hover:opacity-90 transition-opacity">
+      Get Started
+    </a>
+    <a href="https://github.com/darkroot192-sudo/auth-security-project" className="bg-transparent border-2 border-white text-white px-6 py-3 rounded-md font-semibold hover:bg-white hover:text-[#1a1a1a] transition-colors">
+      View on GitHub
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## What You'll Learn
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+This project provides a safe, controlled environment to explore common web security vulnerabilities through side-by-side comparisons of vulnerable and secure code implementations.
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="SQL Injection" icon="database" href="/vulnerabilities/sql-injection">
+    Learn how attackers bypass authentication and extract data through SQL injection attacks
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Cross-Site Scripting" icon="code" href="/vulnerabilities/xss">
+    Understand XSS vulnerabilities and how to prevent malicious script injection
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Access Control" icon="shield" href="/vulnerabilities/idor">
+    Explore Insecure Direct Object Reference and proper authorization checks
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Password Security" icon="key" href="/vulnerabilities/password-storage">
+    Compare plaintext storage with secure password hashing techniques
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Key Features
 
-Everything you need to create world-class documentation.
+<CardGroup cols={3}>
+  <Card title="Hands-On Learning" icon="laptop-code">
+    Two parallel Flask applications demonstrating vulnerable vs secure implementations
+  </Card>
+  <Card title="Real-World Examples" icon="globe">
+    Actual exploits and fixes based on OWASP Top 10 vulnerabilities
+  </Card>
+  <Card title="Educational Focus" icon="graduation-cap">
+    Designed for security students, developers, and penetration testers
+  </Card>
+  <Card title="Easy Setup" icon="rocket">
+    Quick installation with Python and SQLite - no complex infrastructure needed
+  </Card>
+  <Card title="Code Comparisons" icon="code-compare">
+    Side-by-side vulnerable and secure code to understand the differences
+  </Card>
+  <Card title="Best Practices" icon="check-circle">
+    Learn industry-standard security patterns and mitigation techniques
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Vulnerabilities Covered
 
-## Need inspiration?
+<AccordionGroup>
+  <Accordion title="SQL Injection (SQLi)" icon="database">
+    Authentication bypass through malicious SQL query manipulation. Learn how parameterized queries and prepared statements prevent this critical vulnerability.
+  </Accordion>
+  
+  <Accordion title="Cross-Site Scripting (XSS)" icon="code">
+    JavaScript injection attacks that can steal cookies, hijack sessions, or deface websites. Understand output encoding and Content Security Policy.
+  </Accordion>
+  
+  <Accordion title="Insecure Direct Object Reference (IDOR)" icon="lock-open">
+    Unauthorized access to other users' data by manipulating object references. Learn proper authorization checks and access control.
+  </Accordion>
+  
+  <Accordion title="Insecure Password Storage" icon="key">
+    Storing passwords in plaintext vs using bcrypt hashing with automatic salting. Critical for protecting user credentials.
+  </Accordion>
+  
+  <Accordion title="Session Management Flaws" icon="clock">
+    Weak session handling, predictable session IDs, and missing security flags. Learn secure session configuration.
+  </Accordion>
+  
+  <Accordion title="Missing CSRF Protection" icon="shield-halved">
+    Cross-Site Request Forgery attacks that trick users into executing unwanted actions. Implement token-based CSRF protection.
+  </Accordion>
+  
+  <Accordion title="Security Misconfiguration" icon="wrench">
+    Exposed error messages, debug mode in production, and hardcoded secrets. Learn security headers and environment management.
+  </Accordion>
+  
+  <Accordion title="Sensitive Data Exposure" icon="eye-slash">
+    Leaking sensitive information through error messages, logs, or responses. Understand data minimization and error handling.
+  </Accordion>
+</AccordionGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
+<Warning>
+  **Educational Use Only**
+  
+  This project is designed exclusively for educational purposes in controlled environments. Never use these techniques on systems without explicit authorization. Unauthorized access is illegal and can result in criminal charges.
+</Warning>
+
+## Quick Start
+
+<Steps>
+  <Step title="Clone the Repository">
+    Get started by cloning the project and installing dependencies
+    ```bash
+    git clone https://github.com/darkroot192-sudo/auth-security-project.git
+    cd auth-security-project
+    ```
+  </Step>
+  
+  <Step title="Run the Demos">
+    Launch both vulnerable and secure versions to compare implementations
+    ```bash
+    # Run vulnerable version
+    cd vulnerable && python app.py
+    
+    # Run secure version (in separate terminal)
+    cd secure && python app.py
+    ```
+  </Step>
+  
+  <Step title="Explore Vulnerabilities">
+    Follow the guided tutorials to test each vulnerability in a safe environment
+  </Step>
+</Steps>
+
+## Why This Matters
+
+Web application security is critical in today's digital landscape. According to OWASP, injection attacks and broken authentication remain among the most common and dangerous vulnerabilities. This project helps you:
+
+- **Understand attacker mindset** - See how vulnerabilities are exploited in practice
+- **Write secure code** - Learn defensive programming techniques and security patterns  
+- **Pass security audits** - Apply best practices that meet industry standards
+- **Protect user data** - Implement proper authentication, authorization, and data protection
+
+<Card title="Ready to Learn?" icon="rocket" href="/quickstart">
+  Jump into the quickstart guide and run your first security demonstration
 </Card>

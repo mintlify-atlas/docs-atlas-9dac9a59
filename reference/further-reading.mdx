@@ -1,0 +1,512 @@
+---
+title: 'Further Reading & Resources'
+description: 'Comprehensive security learning resources, tools, and community links'
+icon: 'book-open'
+---
+
+## Overview
+
+This page curates high-quality resources for deepening your understanding of web application security, ethical hacking, and secure development practices.
+
+<CardGroup cols={3}>
+  <Card title="Documentation" icon="book" color="#0ea5e9">
+    Official security standards and guidelines
+  </Card>
+  <Card title="Practice Labs" icon="flask" color="#8b5cf6">
+    Hands-on vulnerability testing environments
+  </Card>
+  <Card title="Tools" icon="wrench" color="#f59e0b">
+    Security testing and analysis tools
+  </Card>
+</CardGroup>
+
+---
+
+## Official Security Standards
+
+### OWASP Resources
+
+<Accordion title="Core Documentation">
+  **OWASP Top 10**
+  - [OWASP Top 10 2021](https://owasp.org/Top10/) - Most critical web security risks
+  - [OWASP Top 10 API Security 2023](https://owasp.org/API-Security/editions/2023/en/0x00-header/) - API-specific risks
+  - [OWASP Mobile Top 10](https://owasp.org/www-project-mobile-top-10/) - Mobile application security
+  
+  **Testing & Verification**
+  - [Web Security Testing Guide (WSTG)](https://owasp.org/www-project-web-security-testing-guide/) - Comprehensive testing methodology
+  - [Application Security Verification Standard (ASVS)](https://owasp.org/www-project-application-security-verification-standard/) - Security requirements framework
+  - [Software Assurance Maturity Model (SAMM)](https://owaspsamm.org/) - Organizational security maturity
+  
+  **Development Resources**
+  - [Cheat Sheet Series](https://cheatsheetseries.owasp.org/) - Quick reference for secure coding
+  - [Proactive Controls](https://owasp.org/www-project-proactive-controls/) - Top 10 security techniques
+  - [Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/) - Quick reference guide
+</Accordion>
+
+<Accordion title="OWASP Tools & Projects">
+  **Security Testing Tools**
+  - [ZAP (Zed Attack Proxy)](https://www.zaproxy.org/) - Web application security scanner
+  - [Dependency-Check](https://owasp.org/www-project-dependency-check/) - Vulnerable component detection
+  - [Amass](https://owasp.org/www-project-amass/) - Attack surface mapping
+  
+  **Vulnerable Applications for Practice**
+  - [WebGoat](https://owasp.org/www-project-webgoat/) - Deliberately insecure application
+  - [Juice Shop](https://owasp.org/www-project-juice-shop/) - Modern vulnerable web app
+  - [DVWA](https://github.com/digininja/DVWA) - Damn Vulnerable Web Application
+  - [NodeGoat](https://owasp.org/www-project-nodegoat/) - Vulnerable Node.js application
+</Accordion>
+
+---
+
+### MITRE Resources
+
+<CardGroup cols={2}>
+  <Card title="CWE" icon="database" href="https://cwe.mitre.org/" color="#ea5a0c">
+    **Common Weakness Enumeration**
+    
+    Comprehensive dictionary of software weaknesses
+    - 900+ weakness types
+    - Hierarchical categorization
+    - Mitigation strategies
+  </Card>
+  
+  <Card title="CAPEC" icon="shield-halved" href="https://capec.mitre.org/" color="#dc2626">
+    **Common Attack Patterns**
+    
+    Database of attack patterns and techniques
+    - Attack execution flows
+    - Prerequisites and indicators
+    - Mitigation approaches
+  </Card>
+  
+  <Card title="CVE" icon="bug" href="https://cve.mitre.org/" color="#9333ea">
+    **Common Vulnerabilities**
+    
+    Public database of security vulnerabilities
+    - Real-world CVE examples
+    - Vendor advisories
+    - Patch information
+  </Card>
+  
+  <Card title="ATT&CK" icon="crosshairs" href="https://attack.mitre.org/" color="#059669">
+    **Adversarial Tactics**
+    
+    Knowledge base of attacker techniques
+    - Enterprise, Mobile, ICS matrices
+    - Threat actor profiles
+    - Detection strategies
+  </Card>
+</CardGroup>
+
+---
+
+### Industry Standards
+
+| Standard | Organization | Focus Area | Link |
+|----------|--------------|------------|------|
+| **PCI DSS** | PCI Security Standards Council | Payment card security | [pcisecuritystandards.org](https://www.pcisecuritystandards.org/) |
+| **NIST CSF** | NIST | Cybersecurity framework | [nist.gov/cyberframework](https://www.nist.gov/cyberframework) |
+| **ISO 27001** | ISO | Information security management | [iso.org](https://www.iso.org/isoiec-27001-information-security.html) |
+| **CIS Controls** | Center for Internet Security | Security best practices | [cisecurity.org](https://www.cisecurity.org/controls) |
+| **GDPR** | European Union | Data protection | [gdpr.eu](https://gdpr.eu/) |
+
+---
+
+## Practice Platforms & CTF
+
+### Vulnerable Applications
+
+<Accordion title="Beginner-Friendly Labs">
+  **OWASP Projects**
+  - [Juice Shop](https://owasp.org/www-project-juice-shop/) - Modern SPA with 100+ challenges
+  - [WebGoat](https://owasp.org/www-project-webgoat/) - Interactive lessons with validation
+  - [Security Shepherd](https://owasp.org/www-project-security-shepherd/) - Gamified learning platform
+  
+  **Classic Vulnerable Apps**
+  - [DVWA](https://github.com/digininja/DVWA) - Three difficulty levels
+  - [bWAPP](http://www.itsecgames.com/) - 100+ web vulnerabilities
+  - [Mutillidae](https://github.com/webpwnized/mutillidae) - OWASP Top 10 coverage
+  
+  **Modern Stacks**
+  - [VulnHub](https://www.vulnhub.com/) - Downloadable vulnerable VMs
+  - [HackTheBox Retired Machines](https://www.hackthebox.com/) - Web app challenges
+  - [PortSwigger Web Security Academy](https://portswigger.net/web-security) - Free interactive labs
+</Accordion>
+
+<Accordion title="Advanced Practice">
+  **Capture The Flag (CTF) Platforms**
+  - [HackTheBox](https://www.hackthebox.com/) - Active and retired machines
+  - [TryHackMe](https://tryhackme.com/) - Guided learning paths
+  - [PentesterLab](https://pentesterlab.com/) - Web penetration testing
+  - [Root-Me](https://www.root-me.org/) - 400+ challenges
+  - [OverTheWire](https://overthewire.org/) - Wargames for learning
+  
+  **Bug Bounty Practice**
+  - [HackerOne CTF](https://www.hackerone.com/hackers/hacker101) - Real-world scenarios
+  - [Bugcrowd University](https://www.bugcrowd.com/hackers/bugcrowd-university/) - Learning resources
+  - [Intigriti Challenge](https://www.intigriti.com/public/challenge) - Monthly XSS challenges
+  
+  **Cloud Security**
+  - [flAWS](http://flaws.cloud/) - AWS security challenges
+  - [flAWS2](http://flaws2.cloud/) - Advanced AWS scenarios
+  - [CloudGoat](https://github.com/RhinoSecurityLabs/cloudgoat) - Vulnerable AWS environments
+</Accordion>
+
+---
+
+## Security Tools
+
+### Web Application Scanners
+
+<CardGroup cols={2}>
+  <Card title="OWASP ZAP" icon="spider" color="#0ea5e9">
+    **Free & Open Source**
+    
+    - Automated vulnerability scanning
+    - Manual testing proxy
+    - API testing support
+    - Browser integration
+    
+    [Download ZAP](https://www.zaproxy.org/download/)
+  </Card>
+  
+  <Card title="Burp Suite" icon="tower-broadcast" color="#f97316">
+    **Industry Standard**
+    
+    - Intercepting proxy
+    - Advanced scanner (Pro)
+    - Extensive extensions
+    - Collaboration features
+    
+    [Get Burp](https://portswigger.net/burp)
+  </Card>
+  
+  <Card title="Nikto" icon="terminal" color="#8b5cf6">
+    **Web Server Scanner**
+    
+    - 6,700+ dangerous files/CGIs
+    - Server configuration issues
+    - Outdated software detection
+    - Command-line interface
+    
+    [GitHub](https://github.com/sullo/nikto)
+  </Card>
+  
+  <Card title="sqlmap" icon="database" color="#dc2626">
+    **SQL Injection Tool**
+    
+    - Automated SQL injection
+    - Database fingerprinting
+    - Data extraction
+    - Out-of-band techniques
+    
+    [sqlmap.org](https://sqlmap.org/)
+  </Card>
+</CardGroup>
+
+### Specialized Testing Tools
+
+<Accordion title="Injection & XSS Testing">
+  **SQL Injection**
+  - [sqlmap](https://sqlmap.org/) - Automated SQL injection
+  - [jSQL Injection](https://github.com/ron190/jsql-injection) - GUI-based SQLi tool
+  - [NoSQLMap](https://github.com/codingo/NoSQLMap) - NoSQL injection
+  
+  **Cross-Site Scripting (XSS)**
+  - [XSStrike](https://github.com/s0md3v/XSStrike) - Advanced XSS detection
+  - [DOMPurify](https://github.com/cure53/DOMPurify) - XSS sanitizer
+  - [XSS Hunter](https://xsshunter.com/) - Blind XSS discovery
+  
+  **Command Injection**
+  - [Commix](https://github.com/commixproject/commix) - Command injection exploitation
+  
+  **Template Injection**
+  - [tplmap](https://github.com/epinna/tplmap) - Server-side template injection
+</Accordion>
+
+<Accordion title="Authentication & Session Testing">
+  **Password Attacks**
+  - [Hydra](https://github.com/vanhauser-thc/thc-hydra) - Network login cracker
+  - [John the Ripper](https://www.openwall.com/john/) - Password hash cracker
+  - [Hashcat](https://hashcat.net/hashcat/) - GPU-accelerated cracking
+  - [CeWL](https://github.com/digininja/CeWL) - Custom wordlist generator
+  
+  **Session Management**
+  - [Cookie Editor](https://cookie-editor.cgagnier.ca/) - Browser extension
+  - [EditThisCookie](http://www.editthiscookie.com/) - Cookie manager
+  - [Session Buddy](https://sessionbuddy.com/) - Session management
+  
+  **JWT Testing**
+  - [jwt_tool](https://github.com/ticarpi/jwt_tool) - JWT manipulation
+  - [JWT.io](https://jwt.io/) - JWT decoder and verifier
+</Accordion>
+
+<Accordion title="API & Mobile Testing">
+  **API Testing**
+  - [Postman](https://www.postman.com/) - API development and testing
+  - [Insomnia](https://insomnia.rest/) - REST client
+  - [GraphQL Voyager](https://apis.guru/graphql-voyager/) - GraphQL exploration
+  - [Arjun](https://github.com/s0md3v/Arjun) - HTTP parameter discovery
+  
+  **Mobile Application Security**
+  - [MobSF](https://github.com/MobSF/Mobile-Security-Framework-MobSF) - Mobile security framework
+  - [Frida](https://frida.re/) - Dynamic instrumentation
+  - [Objection](https://github.com/sensepost/objection) - Runtime mobile exploration
+  - [APKTool](https://ibotpeaches.github.io/Apktool/) - Android APK reverse engineering
+</Accordion>
+
+---
+
+## Learning Resources
+
+### Books
+
+<Accordion title="Essential Reading">
+  **Web Application Security**
+  - *The Web Application Hacker's Handbook* (2nd Ed) - Stuttard & Pinto
+  - *Real-World Bug Hunting* - Peter Yaworski
+  - *Breaking into Information Security* - Bryson Payne
+  - *Web Security for Developers* - Malcolm McDonald
+  
+  **Secure Development**
+  - *The Tangled Web* - Michal Zalewski
+  - *Secure by Design* - Johnsson, Deogun, Sawano
+  - *Iron-Clad Java* - Manico & Detlefsen
+  - *Defensive Security Handbook* - Jacobs & Rudis
+  
+  **Penetration Testing**
+  - *The Hacker Playbook 3* - Peter Kim
+  - *Penetration Testing* - Georgia Weidman
+  - *Metasploit: The Penetration Tester's Guide* - Kennedy et al.
+  - *RTFM: Red Team Field Manual* - Ben Clark
+  
+  **Cryptography**
+  - *Serious Cryptography* - Jean-Philippe Aumasson
+  - *Cryptography Engineering* - Ferguson, Schneier, Kohno
+</Accordion>
+
+### Online Courses
+
+<Accordion title="Structured Learning Paths">
+  **Free Courses**
+  - [PortSwigger Web Security Academy](https://portswigger.net/web-security) - Comprehensive free labs
+  - [OWASP Top 10 Course](https://application.security/) - Application Security Inc.
+  - [Stanford CS 253](https://web.stanford.edu/class/cs253/) - Web Security
+  - [Cybrary](https://www.cybrary.it/) - Various security courses
+  
+  **Paid Platforms**
+  - [Offensive Security](https://www.offensive-security.com/) - OSCP, OSWE certifications
+  - [SANS Cyber Aces](https://www.sans.org/cyberaces/) - Tutorials and challenges
+  - [Pluralsight Security Path](https://www.pluralsight.com/browse/information-cyber-security) - Video courses
+  - [Udemy Security Courses](https://www.udemy.com/topic/cyber-security/) - Various topics
+  
+  **University Courses (Free)**
+  - [MIT 6.858 Computer Systems Security](https://css.csail.mit.edu/6.858/)
+  - [UC Berkeley CS 161](https://su21.cs161.org/) - Computer Security
+</Accordion>
+
+### Video Content
+
+<Accordion title="YouTube Channels & Conference Talks">
+  **YouTube Channels**
+  - [LiveOverflow](https://www.youtube.com/c/LiveOverflow) - CTF walkthroughs and security
+  - [John Hammond](https://www.youtube.com/c/JohnHammond010) - Hacking tutorials
+  - [IppSec](https://www.youtube.com/c/ippsec) - HackTheBox walkthroughs
+  - [STÖK](https://www.youtube.com/c/STOKfredrik) - Bug bounty content
+  - [Nahamsec](https://www.youtube.com/c/Nahamsec) - Web security and recon
+  - [The Cyber Mentor](https://www.youtube.com/c/TheCyberMentor) - Ethical hacking
+  
+  **Security Conferences**
+  - [DEF CON](https://www.youtube.com/user/DEFCONConference) - Largest hacker conference
+  - [Black Hat](https://www.youtube.com/user/BlackHatOfficialYT) - Security research
+  - [OWASP Global](https://www.youtube.com/user/OWASPGLOBAL) - Application security
+  - [BSides](https://www.youtube.com/user/SecurityBSides) - Community-driven events
+</Accordion>
+
+---
+
+## Communities & Forums
+
+<CardGroup cols={2}>
+  <Card title="Reddit" icon="reddit" color="#ff4500">
+    **Subreddits**
+    - r/netsec - Network security news
+    - r/websecurity - Web app security
+    - r/AskNetsec - Security questions
+    - r/bugbounty - Bug bounty hunters
+  </Card>
+  
+  <Card title="Discord & Slack" icon="comments" color="#5865f2">
+    **Communities**
+    - OWASP Slack
+    - Bug Bounty Forum Discord
+    - HackTheBox Discord
+    - TryHackMe Discord
+  </Card>
+  
+  <Card title="Twitter/X" icon="x-twitter" color="#000000">
+    **Security Researchers**
+    - @OWASP
+    - @naglinagli
+    - @hakluke
+    - @bugcrowd
+  </Card>
+  
+  <Card title="Forums" icon="message" color="#0891b2">
+    **Discussion Boards**
+    - [Security StackExchange](https://security.stackexchange.com/)
+    - [BugCrowd Forum](https://forum.bugcrowd.com/)
+    - [HackerOne Hacktivity](https://hackerone.com/hacktivity)
+  </Card>
+</CardGroup>
+
+---
+
+## Blogs & News
+
+### Security Blogs
+
+<Accordion title="Individual Researchers">
+  - [PortSwigger Research](https://portswigger.net/research) - Advanced web security research
+  - [Google Project Zero](https://googleprojectzero.blogspot.com/) - 0-day research
+  - [Troy Hunt](https://www.troyhunt.com/) - Have I Been Pwned creator
+  - [Krebs on Security](https://krebsonsecurity.com/) - Investigative journalism
+  - [Schneier on Security](https://www.schneier.com/) - Cryptography and security
+  - [Daniel Miessler](https://danielmiessler.com/) - Security, tech, and meaning
+</Accordion>
+
+<Accordion title="Company & Organization Blogs">
+  - [OWASP Blog](https://owasp.org/blog/) - Project updates and articles
+  - [HackerOne Hacktivity](https://www.hackerone.com/hacktivity) - Disclosed vulnerabilities
+  - [Bugcrowd Blog](https://www.bugcrowd.com/blog/) - Bug bounty insights
+  - [Imperva Blog](https://www.imperva.com/blog/) - Application security
+  - [Cloudflare Blog](https://blog.cloudflare.com/) - Internet security
+  - [GitHub Security Lab](https://securitylab.github.com/) - Open source security
+</Accordion>
+
+### News Aggregators
+
+| Resource | Description | Link |
+|----------|-------------|------|
+| **The Hacker News** | Latest cybersecurity news | [thehackernews.com](https://thehackernews.com/) |
+| **Dark Reading** | Enterprise security news | [darkreading.com](https://www.darkreading.com/) |
+| **Threatpost** | Security news and analysis | [threatpost.com](https://threatpost.com/) |
+| **Bleeping Computer** | Tech news and security | [bleepingcomputer.com](https://www.bleepingcomputer.com/) |
+| **/r/netsec** | Community-curated security | [reddit.com/r/netsec](https://www.reddit.com/r/netsec/) |
+
+---
+
+## Python Security Libraries
+
+### Relevant to This Project
+
+```python
+# Authentication & Password Management
+from werkzeug.security import generate_password_hash, check_password_hash
+import bcrypt
+import argon2
+
+# Input Validation & Sanitization
+from markupsafe import escape, Markup
+import bleach
+import validators
+
+# CSRF Protection
+from flask_wtf.csrf import CSRFProtect
+
+# Security Headers
+from flask_talisman import Talisman
+from flask_seasurf import SeaSurf
+
+# Rate Limiting
+from flask_limiter import Limiter
+
+# SQL Safety
+import sqlalchemy  # ORM with parameterized queries
+from psycopg2 import sql  # PostgreSQL parameterization
+```
+
+**Documentation:**
+- [Werkzeug Security](https://werkzeug.palletsprojects.com/en/stable/utils/#module-werkzeug.security)
+- [Flask-WTF](https://flask-wtf.readthedocs.io/)
+- [MarkupSafe](https://markupsafe.palletsprojects.com/)
+- [Flask-Talisman](https://github.com/GoogleCloudPlatform/flask-talisman)
+
+---
+
+## Certifications
+
+<Accordion title="Entry to Intermediate">
+  **Vendor-Neutral**
+  - **CompTIA Security+** - Foundation security concepts
+  - **CEH** (Certified Ethical Hacker) - EC-Council
+  - **GIAC GSEC** - SANS Security Essentials
+  
+  **Web-Focused**
+  - **eWPT** (eLearnSecurity Web Penetration Tester)
+  - **GWAPT** (GIAC Web Application Penetration Tester)
+</Accordion>
+
+<Accordion title="Advanced & Specialist">
+  **Offensive Security**
+  - **OSCP** (Offensive Security Certified Professional) - Highly respected
+  - **OSWE** (Offensive Security Web Expert) - Advanced web testing
+  - **OSCE** (Offensive Security Certified Expert)
+  
+  **Defensive & Architecture**
+  - **CISSP** (Certified Information Systems Security Professional)
+  - **CSSLP** (Certified Secure Software Lifecycle Professional)
+  - **GIAC GWAPT** - Advanced web app penetration testing
+</Accordion>
+
+---
+
+## Security Newsletters
+
+Stay updated with weekly/monthly digests:
+
+- **[tl;dr sec](https://tldrsec.com/)** - AppSec and cloud security
+- **[Risky Business](https://risky.biz/)** - Security news podcast and newsletter
+- **[API Security Weekly](https://apisecurity.io/)** - API-specific security
+- **[Web Security Newsletter](https://websec.substack.com/)** - Web vulnerabilities
+- **[OWASP Connector](https://owasp.org/www-community/)** - Project updates
+
+---
+
+## Responsible Disclosure
+
+<Warning>
+  **Always follow responsible disclosure practices:**
+  
+  1. Only test on systems you own or have explicit permission to test
+  2. Report vulnerabilities to the vendor/owner before public disclosure
+  3. Allow reasonable time for patching (typically 90 days)
+  4. Respect bug bounty program rules and scope
+  5. Never exploit vulnerabilities for personal gain
+  6. Comply with local laws and regulations (CFAA, Computer Misuse Act, etc.)
+</Warning>
+
+**Disclosure Resources:**
+- [CERT Vulnerability Disclosure](https://vuls.cert.org/confluence/display/Wiki/Vulnerability+Disclosure+Policy)
+- [HackerOne Disclosure Guidelines](https://www.hackerone.com/disclosure-guidelines)
+- [Google Vulnerability Reward Program](https://bughunters.google.com/)
+
+---
+
+## Related Documentation Pages
+
+<CardGroup cols={3}>
+  <Card title="OWASP Top 10" icon="shield-halved" href="/reference/owasp-top-10">
+    See how this project maps to OWASP categories
+  </Card>
+  <Card title="CWE References" icon="database" href="/reference/cwe-references">
+    Detailed CWE mappings for each vulnerability
+  </Card>
+  <Card title="Vulnerabilities" icon="bug" href="/vulnerabilities/sql-injection">
+    Start learning with SQL Injection
+  </Card>
+</CardGroup>
+
+<Note>
+  This resource list is continuously updated. Bookmark this page and check back regularly for new tools, platforms, and learning materials.
+</Note>

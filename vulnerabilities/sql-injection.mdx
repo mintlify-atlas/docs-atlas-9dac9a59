@@ -1,0 +1,320 @@
+---
+title: 'SQL Injection'
+description: 'Critical vulnerability allowing arbitrary SQL code execution through unvalidated user input'
+icon: 'syringe'
+---
+
+<Warning>
+  **Educational Purpose Only** - This documentation is for learning security concepts in a controlled environment. Never attempt SQL injection on systems without explicit authorization.
+</Warning>
+
+## Overview
+
+SQL Injection (SQLi) is a critical web security vulnerability that allows attackers to interfere with database queries by injecting malicious SQL code through user input fields. In this demo, the vulnerable login form concatenates user input directly into SQL queries, enabling complete authentication bypass.
+
+<Card title="Severity Rating" icon="exclamation-triangle">
+  **CRITICAL** - CVSS Score: 9.8/10
+  
+  **CWE Reference**: [CWE-89: Improper Neutralization of Special Elements used in an SQL Command](https://cwe.mitre.org/data/definitions/89.html)
+</Card>
+
+## Vulnerable Code
+
+The vulnerable implementation in `vulnerable/app.py:26` uses string formatting to construct SQL queries:
+
+```python vulnerable/app.py
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        # VULNERABLE: SQL Injection
+        query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+        print(f"Query ejecutada: {query}")
+        
+        cursor.execute(query)
+        user = cursor.fetchone()
+        
+        if user:
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            return redirect('/dashboard')
+```
+
+### Why This Is Dangerous
+
+The vulnerability exists because:
+
+1. **Direct String Concatenation**: User input is embedded directly into the SQL query using f-strings
+2. **No Input Validation**: The application doesn't sanitize or validate special characters
+3. **No Parameterization**: The query doesn't use prepared statements or parameterized queries
+4. **Error Exposure**: SQL errors are displayed to users (`vulnerable/app.py:43`), revealing database structure
+
+## Exploitation Steps
+
+<Steps>
+  <Step title="Access the Vulnerable Login">
+    Navigate to the vulnerable application login page:
+    ```
+    https://auth-vulnerable.onrender.com/login
+    ```
+  </Step>
+  
+  <Step title="Inject SQL Payload">
+    Enter the following credentials to bypass authentication:
+    
+    <Tabs>
+      <Tab title="Payload 1: OR Bypass">
+        **Username**: `admin`  
+        **Password**: `x' OR '1'='1`
+        
+        This creates the query:
+        ```sql
+        SELECT * FROM users WHERE username = 'admin' AND password = 'x' OR '1'='1'
+        ```
+        The `OR '1'='1'` always evaluates to TRUE, bypassing password verification.
+      </Tab>
+      
+      <Tab title="Payload 2: Comment Bypass">
+        **Username**: `admin' --`  
+        **Password**: (anything)
+        
+        Creates:
+        ```sql
+        SELECT * FROM users WHERE username = 'admin' -- ' AND password = 'anything'
+        ```
+        The `--` comments out the rest of the query, ignoring password check entirely.
+        
+        <Note>Ensure there's a space after `--` for it to work as a comment in SQL.</Note>
+      </Tab>
+      
+      <Tab title="Payload 3: Always True">
+        **Username**: `' OR 'a'='a`  
+        **Password**: `' OR 'a'='a`
+        
+        Results in:
+        ```sql
+        SELECT * FROM users WHERE username = '' OR 'a'='a' AND password = '' OR 'a'='a'
+        ```
+        Both conditions evaluate to TRUE, returning all users.
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Verify Access">
+    Upon successful injection, you'll be:
+    - Logged in as the first user in the database (typically admin)
+    - Redirected to `/dashboard`
+    - Granted full session access without knowing the actual password
+  </Step>
+</Steps>
+
+## Impact Analysis
+
+<CardGroup cols={2}>
+  <Card title="Confirmed in Demo" icon="check">
+    - Complete authentication bypass
+    - Access to admin accounts
+    - Session hijacking
+    - Database error information disclosure
+  </Card>
+  
+  <Card title="Real-World Risks" icon="skull">
+    - Full database extraction
+    - Data modification/deletion
+    - Privilege escalation
+    - Remote code execution (in extreme cases)
+    - Compliance violations (GDPR, PCI-DSS)
+  </Card>
+</CardGroup>
+
+## Advanced Exploitation
+
+Beyond authentication bypass, SQL injection can be used for:
+
+### Data Extraction
+```sql
+' UNION SELECT id, username, password, email, role, created_at FROM users --
+```
+
+### Database Enumeration
+```sql
+' AND 1=0 UNION SELECT null, sqlite_version(), null, null, null, null --
+```
+
+### Boolean-Based Blind SQLi
+```sql
+' AND (SELECT COUNT(*) FROM users) > 5 --
+```
+
+## Secure Implementation
+
+The secure version in `secure/app.py:54-63` properly prevents SQL injection:
+
+<CodeGroup>
+```python secure/app.py (Prepared Statements)
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        # Input validation
+        if not username or not password:
+            flash('Usuario y contraseña son requeridos', 'danger')
+            return render_template('login.html')
+        
+        if len(username) > 50:
+            flash('Usuario inválido', 'danger')
+            return render_template('login.html')
+        
+        connection = create_connection()
+        cursor = connection.cursor()
+        
+        # SECURE: Parameterized query
+        query = "SELECT * FROM users WHERE username = %s"
+        cursor.execute(query, (username,))
+        user = cursor.fetchone()
+        
+        # SECURE: Hash verification separate from SQL
+        if user and check_password_hash(user['password'], password):
+            session['user_id'] = user['id']
+            return redirect('/dashboard')
+        else:
+            flash('Credenciales incorrectas', 'danger')
+```
+
+```python Key Security Improvements
+# 1. Prepared Statements
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))  # Parameterized
+
+# 2. Input Validation
+if len(username) > 50:
+    return error
+
+# 3. Separation of Concerns
+# Password verification happens AFTER query,
+# not IN the query itself
+if user and check_password_hash(user['password'], password):
+    # Login success
+
+# 4. No Error Disclosure
+flash('Credenciales incorrectas', 'danger')  # Generic message
+```
+</CodeGroup>
+
+## Mitigation Strategies
+
+<AccordionGroup>
+  <Accordion title="1. Use Prepared Statements (Primary Defense)">
+    Always use parameterized queries or prepared statements:
+    
+    ```python
+    # Good: Parameterized
+    cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+    
+    # Bad: String formatting
+    cursor.execute(f"SELECT * FROM users WHERE username = '{username}'")
+    ```
+    
+    Prepared statements ensure user input is treated as data, never as SQL code.
+  </Accordion>
+  
+  <Accordion title="2. Input Validation & Sanitization">
+    Validate all user input:
+    
+    ```python
+    # Length validation
+    if len(username) > 50:
+        return error
+    
+    # Character whitelist
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return error
+    
+    # Strip whitespace
+    username = username.strip()
+    ```
+  </Accordion>
+  
+  <Accordion title="3. Use ORM Frameworks">
+    ORMs like SQLAlchemy automatically use parameterized queries:
+    
+    ```python
+    # SQLAlchemy example
+    user = User.query.filter_by(username=username).first()
+    ```
+  </Accordion>
+  
+  <Accordion title="4. Principle of Least Privilege">
+    Database users should have minimal necessary permissions:
+    
+    ```sql
+    -- Create limited user
+    CREATE USER 'webapp'@'localhost' IDENTIFIED BY 'password';
+    GRANT SELECT, INSERT, UPDATE ON webapp_db.* TO 'webapp'@'localhost';
+    -- NO DELETE, DROP, or admin privileges
+    ```
+  </Accordion>
+  
+  <Accordion title="5. Error Handling">
+    Never expose SQL errors to users:
+    
+    ```python
+    try:
+        cursor.execute(query, params)
+    except sqlite3.Error as e:
+        # Log error securely
+        logger.error(f"Database error: {e}")
+        # Show generic message to user
+        flash('An error occurred. Please try again.', 'danger')
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Detection and Prevention
+
+### Code Review Checklist
+
+- [ ] All database queries use prepared statements/parameterized queries
+- [ ] No string concatenation or f-strings in SQL queries
+- [ ] Input validation on all user-supplied data
+- [ ] Generic error messages (no SQL error exposure)
+- [ ] Database user has minimal required privileges
+- [ ] SQL injection testing in CI/CD pipeline
+
+### Testing Tools
+
+<CardGroup cols={2}>
+  <Card title="SQLMap" icon="terminal">
+    Automated SQL injection testing tool
+    ```bash
+    sqlmap -u "http://target.com/login" \
+      --data="username=test&password=test" \
+      --level=5 --risk=3
+    ```
+  </Card>
+  
+  <Card title="Burp Suite" icon="bug">
+    Manual testing and vulnerability scanning
+    - Intruder for payload testing
+    - Scanner for automated detection
+  </Card>
+</CardGroup>
+
+## References
+
+- [OWASP SQL Injection](https://owasp.org/www-community/attacks/SQL_Injection)
+- [CWE-89: SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
+- [OWASP Top 10 2021: A03 Injection](https://owasp.org/Top10/A03_2021-Injection/)
+- [SQLite Security](https://www.sqlite.org/security.html)
+
+<Card title="Next Steps" icon="arrow-right">
+  Explore related vulnerabilities:
+  - [Password Storage](/vulnerabilities/password-storage) - See how passwords should be hashed
+  - [Session Management](/vulnerabilities/session-management) - Learn about session security
+  - [IDOR](/vulnerabilities/idor) - Understand authorization flaws
+</Card>

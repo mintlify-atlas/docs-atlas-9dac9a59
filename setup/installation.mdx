@@ -1,0 +1,324 @@
+---
+title: Installation
+description: Set up the Auth Security Demo environment with Python and Flask
+icon: download
+---
+
+## Prerequisites
+
+Before installing the Auth Security Demo, ensure your system meets these requirements:
+
+<AccordionGroup>
+  <Accordion title="System Requirements">
+    - **Operating System**: Linux, macOS, or Windows with WSL2
+    - **Python**: Version 3.11 or higher (3.13 recommended)
+    - **RAM**: Minimum 2GB available
+    - **Disk Space**: At least 500MB free
+  </Accordion>
+
+  <Accordion title="Software Prerequisites">
+    - Python 3.11+ with pip
+    - Git (for cloning the repository)
+    - A modern web browser (Chrome, Firefox, Safari, or Edge)
+    - Terminal/Command line access
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Verify Python Installation
+
+<Steps>
+  <Step title="Check Python version">
+    Ensure you have Python 3.11 or higher installed:
+
+    ```bash
+    python3 --version
+    ```
+
+    Expected output:
+    ```
+    Python 3.13.x
+    ```
+
+    <Warning>
+      If your Python version is below 3.11, please upgrade before continuing. Visit [python.org](https://www.python.org/downloads/) for installation instructions.
+    </Warning>
+  </Step>
+
+  <Step title="Verify pip is available">
+    Check that pip (Python package installer) is installed:
+
+    ```bash
+    python3 -m pip --version
+    ```
+
+    Expected output:
+    ```
+    pip 24.x from /path/to/pip (python 3.13)
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Installation Process
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Auth Security Demo source code:
+
+    ```bash
+    git clone https://github.com/your-repo/auth-security-demo.git
+    cd auth-security-demo
+    ```
+  </Step>
+
+  <Step title="Set up the vulnerable application">
+    Install dependencies for the vulnerable version:
+
+    ```bash
+    cd vulnerable
+    python3 -m pip install -r requirements.txt
+    ```
+
+    The vulnerable app requires these packages:
+    - **Flask 3.0.0** - Web framework
+    - **python-dotenv 1.0.0** - Environment variable management
+    - **gunicorn 21.2.0** - WSGI HTTP server
+  </Step>
+
+  <Step title="Initialize the vulnerable database">
+    Create and populate the database:
+
+    ```bash
+    python3 database.py
+    ```
+
+    Expected output:
+    ```
+    ✓ Base de datos vulnerable configurada (SQLite)
+    ```
+
+    This creates `users.db` with two test accounts:
+    - **admin** / admin123 (admin role)
+    - **usuario** / password123 (user role)
+  </Step>
+
+  <Step title="Set up the secure application">
+    Navigate to the secure directory and install dependencies:
+
+    ```bash
+    cd ../secure
+    python3 -m pip install -r requirements.txt
+    ```
+
+    The secure app requires additional security packages:
+    - **Flask 3.0.0** - Web framework
+    - **Werkzeug 3.0.0** - Password hashing utilities
+    - **Flask-WTF 1.2.1** - CSRF protection
+    - **python-dotenv 1.0.0** - Environment configuration
+    - **gunicorn 21.2.0** - Production server
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env` file in the secure directory:
+
+    ```bash
+    echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32)')" > .env
+    ```
+
+    <Warning>
+      Never commit `.env` files to version control. They contain sensitive configuration data.
+    </Warning>
+  </Step>
+
+  <Step title="Initialize the secure database">
+    Set up the secure database with hashed passwords:
+
+    ```bash
+    python3 database.py
+    ```
+
+    Expected output:
+    ```
+    ✓ Base de datos segura configurada (SQLite)
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Verify Installation
+
+<Tabs>
+  <Tab title="Quick Test">
+    Test that both applications can start:
+
+    ```bash
+    # Test vulnerable app
+    cd vulnerable
+    python3 -c "import flask; print('✓ Flask installed')"
+    
+    # Test secure app
+    cd ../secure
+    python3 -c "import flask, flask_wtf; print('✓ All packages installed')"
+    ```
+  </Tab>
+
+  <Tab title="Database Check">
+    Verify the databases were created:
+
+    ```bash
+    # Check vulnerable database
+    ls -lh vulnerable/users.db
+    
+    # Check secure database
+    ls -lh secure/users.db
+    ```
+
+    Both files should exist and be several KB in size.
+  </Tab>
+
+  <Tab title="Port Availability">
+    Ensure the required ports are available:
+
+    ```bash
+    # Check if port 5000 is available (vulnerable app)
+    nc -zv localhost 5000 || echo "✓ Port 5000 available"
+    
+    # Check if port 5001 is available (secure app)
+    nc -zv localhost 5001 || echo "✓ Port 5001 available"
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Project Structure
+
+After installation, your directory structure should look like this:
+
+```
+auth-security-demo/
+├── vulnerable/
+│   ├── app.py              # Vulnerable Flask application
+│   ├── database.py         # Database setup (plain text passwords)
+│   ├── requirements.txt    # Python dependencies
+│   ├── users.db           # SQLite database
+│   ├── templates/         # HTML templates
+│   └── static/            # CSS, JS files
+├── secure/
+│   ├── app.py             # Secure Flask application
+│   ├── database.py        # Database setup (hashed passwords)
+│   ├── requirements.txt   # Python dependencies with security libs
+│   ├── .env              # Environment variables (SECRET_KEY)
+│   ├── users.db          # SQLite database
+│   ├── templates/        # HTML templates
+│   └── static/           # CSS, JS files
+└── render.yaml           # Deployment configuration
+```
+
+---
+
+## Dependency Reference
+
+<CodeGroup>
+```txt vulnerable/requirements.txt
+Flask==3.0.0
+python-dotenv==1.0.0
+gunicorn==21.2.0
+```
+
+```txt secure/requirements.txt
+Flask==3.0.0
+python-dotenv==1.0.0
+gunicorn==21.2.0
+Werkzeug==3.0.0
+Flask-WTF==1.2.1
+```
+</CodeGroup>
+
+---
+
+## Troubleshooting Installation
+
+<AccordionGroup>
+  <Accordion title="pip install fails with permissions error">
+    Use the `--user` flag to install packages without root access:
+
+    ```bash
+    python3 -m pip install --user -r requirements.txt
+    ```
+
+    Or use a virtual environment (recommended):
+
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="Python version too old">
+    If you have Python 3.10 or older, install Python 3.13:
+
+    **Ubuntu/Debian:**
+    ```bash
+    sudo apt update
+    sudo apt install python3.13 python3.13-venv python3-pip
+    ```
+
+    **macOS (Homebrew):**
+    ```bash
+    brew install python@3.13
+    ```
+
+    **Windows:**
+    Download from [python.org](https://www.python.org/downloads/)
+  </Accordion>
+
+  <Accordion title="Database creation fails">
+    Ensure you have write permissions in the directory:
+
+    ```bash
+    # Check permissions
+    ls -ld vulnerable/ secure/
+    
+    # If needed, fix permissions
+    chmod 755 vulnerable secure
+    ```
+
+    Delete existing databases and recreate:
+
+    ```bash
+    rm vulnerable/users.db secure/users.db
+    cd vulnerable && python3 database.py
+    cd ../secure && python3 database.py
+    ```
+  </Accordion>
+
+  <Accordion title="Package conflicts or version errors">
+    Create a clean virtual environment:
+
+    ```bash
+    python3 -m venv clean-env
+    source clean-env/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Running the Demos" icon="play" href="/setup/running-demos">
+    Learn how to start both vulnerable and secure applications
+  </Card>
+  <Card title="Testing Vulnerabilities" icon="bug" href="/setup/testing-vulnerabilities">
+    Explore and test the security vulnerabilities
+  </Card>
+</CardGroup>

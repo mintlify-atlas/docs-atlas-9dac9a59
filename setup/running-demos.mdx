@@ -1,0 +1,432 @@
+---
+title: Running the Demos
+description: Start and access the vulnerable and secure Flask applications
+icon: play
+---
+
+## Overview
+
+The Auth Security Demo consists of two separate Flask applications that demonstrate the contrast between vulnerable and secure coding practices:
+
+- **Vulnerable App**: Port 5000 - Demonstrates common security flaws
+- **Secure App**: Port 5001 - Implements security best practices
+
+<Warning>
+  **Educational Use Only**: These applications are designed for learning purposes. Never deploy the vulnerable version in production or on public networks.
+</Warning>
+
+---
+
+## Starting the Applications
+
+<Tabs>
+  <Tab title="Development Mode">
+    <Steps>
+      <Step title="Start the vulnerable application">
+        Open a terminal and run:
+
+        ```bash
+        cd vulnerable
+        python3 app.py
+        ```
+
+        Expected output:
+        ```
+        * Serving Flask app 'app'
+        * Debug mode: off
+        WARNING: This is a development server. Do not use it in production.
+        * Running on all addresses (0.0.0.0)
+        * Running on http://127.0.0.1:5000
+        * Running on http://192.168.x.x:5000
+        ```
+
+        <Info>
+          The vulnerable app runs on **port 5000** with debug mode disabled for realistic testing.
+        </Info>
+      </Step>
+
+      <Step title="Start the secure application">
+        Open a **new terminal** (keep the first one running) and run:
+
+        ```bash
+        cd secure
+        python3 app.py
+        ```
+
+        Expected output:
+        ```
+        * Serving Flask app 'app'
+        * Debug mode: off
+        * Running on all addresses (0.0.0.0)
+        * Running on http://127.0.0.1:5001
+        ```
+
+        <Info>
+          The secure app runs on **port 5001** to avoid conflicts.
+        </Info>
+      </Step>
+
+      <Step title="Verify both apps are running">
+        Check that both servers are responding:
+
+        ```bash
+        # Test vulnerable app
+        curl -I http://localhost:5000
+        
+        # Test secure app
+        curl -I http://localhost:5001
+        ```
+
+        Both should return HTTP 200 OK responses.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Production Mode (Gunicorn)">
+    <Steps>
+      <Step title="Start vulnerable app with Gunicorn">
+        For a production-like environment:
+
+        ```bash
+        cd vulnerable
+        gunicorn app:app --bind 0.0.0.0:5000
+        ```
+
+        Expected output:
+        ```
+        [INFO] Starting gunicorn 21.2.0
+        [INFO] Listening at: http://0.0.0.0:5000
+        [INFO] Using worker: sync
+        [INFO] Booting worker with pid: 12345
+        ```
+      </Step>
+
+      <Step title="Start secure app with Gunicorn">
+        In a new terminal:
+
+        ```bash
+        cd secure
+        gunicorn app:app --bind 0.0.0.0:5001
+        ```
+
+        <Info>
+          Gunicorn provides better performance and is the recommended production server for Flask applications.
+        </Info>
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Background Mode">
+    Run both apps in the background:
+
+    ```bash
+    # Start vulnerable app in background
+    cd vulnerable && python3 app.py &> vulnerable.log &
+    echo $! > vulnerable.pid
+    
+    # Start secure app in background
+    cd ../secure && python3 app.py &> secure.log &
+    echo $! > secure.pid
+    
+    # View running processes
+    ps -p $(cat vulnerable/vulnerable.pid) $(cat secure/secure.pid)
+    ```
+
+    To stop the apps:
+    ```bash
+    kill $(cat vulnerable/vulnerable.pid)
+    kill $(cat secure/secure.pid)
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Accessing the Applications
+
+<CardGroup cols={2}>
+  <Card title="Vulnerable Application" icon="unlock" color="#ef4444">
+    **Local Access:**
+    ```
+    http://localhost:5000
+    ```
+
+    **Default Credentials:**
+    - Admin: `admin` / `admin123`
+    - User: `usuario` / `password123`
+  </Card>
+
+  <Card title="Secure Application" icon="lock" color="#22c55e">
+    **Local Access:**
+    ```
+    http://localhost:5001
+    ```
+
+    **Default Credentials:**
+    - Admin: `admin` / `admin123`
+    - User: `usuario` / `password123`
+  </Card>
+</CardGroup>
+
+---
+
+## Application Features
+
+Both applications include the same features to allow direct comparison:
+
+<AccordionGroup>
+  <Accordion title="Authentication System">
+    - **Login Page** (`/login`): User authentication
+    - **Register Page** (`/register`): New user registration
+    - **Logout** (`/logout`): Session termination
+
+    Test accounts are pre-configured in both databases:
+    | Username | Password | Role |
+    |----------|----------|------|
+    | admin | admin123 | admin |
+    | usuario | password123 | user |
+  </Accordion>
+
+  <Accordion title="Protected Routes">
+    - **Dashboard** (`/dashboard`): Main landing page after login
+    - **Profile** (`/profile`): User profile with query parameter `?id=X`
+
+    These routes require active sessions and demonstrate authorization vulnerabilities.
+  </Accordion>
+
+  <Accordion title="Database Operations">
+    Both apps use **SQLite** with the same schema:
+    
+    ```sql
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        email TEXT,
+        role TEXT DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ```
+
+    **Key Difference:**
+    - Vulnerable: Passwords stored in plain text
+    - Secure: Passwords hashed with bcrypt
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Configuration Details
+
+<CodeGroup>
+```python vulnerable/app.py (Lines 5-6)
+app = Flask(__name__)
+app.secret_key = 'clave_super_secreta_123'  # INSECURE: Hardcoded secret
+```
+
+```python secure/app.py (Lines 12-16)
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY')  # SECURE: From environment
+
+# CSRF Protection
+csrf = CSRFProtect(app)
+```
+</CodeGroup>
+
+<Tabs>
+  <Tab title="Vulnerable App Configuration">
+    **Insecure Practices:**
+    - Hardcoded secret key
+    - No CSRF protection
+    - No security headers
+    - SQL injection vulnerable
+    - XSS vulnerable
+    - IDOR vulnerable
+    
+    **Port:** 5000 (default Flask development port)
+  </Tab>
+
+  <Tab title="Secure App Configuration">
+    **Security Measures:**
+    - Environment-based secret key
+    - Flask-WTF CSRF protection
+    - Security headers (CSP, HSTS, X-Frame-Options)
+    - Parameterized SQL queries
+    - HTML escaping for XSS prevention
+    - Authorization checks for IDOR protection
+    
+    **Port:** 5001 (to avoid conflict)
+  </Tab>
+</Tabs>
+
+---
+
+## Network Access
+
+<Tabs>
+  <Tab title="Localhost Only (Default)">
+    By default, both apps listen on `0.0.0.0`, making them accessible from:
+
+    - `http://localhost:5000` (or 5001)
+    - `http://127.0.0.1:5000` (or 5001)
+    - `http://<your-local-ip>:5000` (or 5001)
+
+    Other devices on your network can access via your local IP.
+  </Tab>
+
+  <Tab title="Restrict to Localhost">
+    For added security during testing, bind only to localhost:
+
+    ```python
+    # Modify app.py
+    if __name__ == '__main__':
+        app.run(host='127.0.0.1', port=5000, debug=False)
+    ```
+
+    Or with Gunicorn:
+    ```bash
+    gunicorn app:app --bind 127.0.0.1:5000
+    ```
+  </Tab>
+
+  <Tab title="Remote Access (Lab Only)">
+    <Warning>
+      Only do this in isolated lab environments, never on production networks.
+    </Warning>
+
+    To make accessible from other machines:
+
+    1. Ensure firewall allows the ports
+    2. Apps are already listening on `0.0.0.0`
+    3. Access via: `http://<server-ip>:5000`
+
+    **Firewall example (Linux):**
+    ```bash
+    sudo ufw allow 5000/tcp
+    sudo ufw allow 5001/tcp
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Monitoring and Logs
+
+<Steps>
+  <Step title="View real-time logs">
+    When running in development mode, logs appear in the terminal:
+
+    ```bash
+    # Watch vulnerable app logs
+    tail -f vulnerable.log
+    
+    # Watch secure app logs
+    tail -f secure.log
+    ```
+
+    <Info>
+      The vulnerable app prints SQL queries to console for educational purposes.
+    </Info>
+  </Step>
+
+  <Step title="Check for SQL queries (vulnerable app)">
+    The vulnerable app logs raw SQL queries:
+
+    ```
+    Query ejecutada: SELECT * FROM users WHERE username = 'admin' AND password = 'admin123'
+    ```
+
+    This helps you see exactly how SQL injection works.
+  </Step>
+
+  <Step title="Monitor HTTP requests">
+    Use browser developer tools (F12) to inspect:
+    - Network requests
+    - Response headers
+    - Cookies and sessions
+    - JavaScript errors (for XSS testing)
+  </Step>
+</Steps>
+
+---
+
+## Stopping the Applications
+
+<Tabs>
+  <Tab title="Interactive Mode">
+    If running in a terminal, press:
+    
+    ```
+    Ctrl + C
+    ```
+
+    This sends a SIGINT signal to gracefully stop the Flask server.
+  </Tab>
+
+  <Tab title="Background Processes">
+    Find and kill the processes:
+
+    ```bash
+    # Find Flask processes
+    ps aux | grep app.py
+    
+    # Kill by PID
+    kill <PID>
+    
+    # Or kill all Python Flask apps
+    pkill -f "python3 app.py"
+    ```
+  </Tab>
+
+  <Tab title="Gunicorn">
+    Gracefully stop Gunicorn:
+
+    ```bash
+    # Find Gunicorn master process
+    ps aux | grep gunicorn
+    
+    # Graceful shutdown
+    kill -TERM <MASTER_PID>
+    
+    # Or force stop
+    pkill -9 gunicorn
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Quick Reference
+
+| Application | Port | URL | Purpose |
+|-------------|------|-----|----------|
+| Vulnerable | 5000 | http://localhost:5000 | Demonstrate vulnerabilities |
+| Secure | 5001 | http://localhost:5001 | Show secure implementations |
+
+**Common Commands:**
+```bash
+# Start vulnerable
+cd vulnerable && python3 app.py
+
+# Start secure
+cd secure && python3 app.py
+
+# Check running apps
+lsof -i :5000,5001
+
+# View logs
+tail -f *.log
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Test Vulnerabilities" icon="bug" href="/setup/testing-vulnerabilities">
+    Learn how to exploit the vulnerable application
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/setup/troubleshooting">
+    Fix common issues with running the apps
+  </Card>
+</CardGroup>

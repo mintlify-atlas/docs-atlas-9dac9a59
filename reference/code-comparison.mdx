@@ -1,0 +1,1045 @@
+---
+title: 'Code Comparison'
+description: 'Side-by-side comparison of vulnerable vs secure implementations'
+icon: 'code-compare'
+---
+
+This page provides detailed side-by-side comparisons of vulnerable and secure code implementations, highlighting the specific changes needed to fix each vulnerability.
+
+## SQL Injection
+
+### Login Authentication
+
+<CodeGroup>
+```python Vulnerable (app.py:25-30)
+# VULNERABLE: SQL Injection
+query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+print(f"Query ejecutada: {query}")
+
+try:
+    cursor.execute(query)
+    user = cursor.fetchone()
+```
+
+```python Secure (app.py:54-63)
+# SEGURO: Prepared statement (previene SQL Injection)
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))
+user = cursor.fetchone()
+
+cursor.close()
+connection.close()
+
+# SEGURO: Verificación de hash de contraseña
+if user and check_password_hash(user['password'], password):
+    # Login exitoso
+```
+</CodeGroup>
+
+<Tabs>
+  <Tab title="The Problem">
+    **Vulnerable Code Issues**:
+    
+    1. **String Interpolation**: Uses f-string to build query
+       ```python
+       f"SELECT * FROM users WHERE username = '{username}'"
+       ```
+    
+    2. **Direct Password Comparison**: Compares plaintext passwords in SQL
+       ```python
+       AND password = '{password}'
+       ```
+    
+    3. **Debug Output**: Prints queries to console
+       ```python
+       print(f"Query ejecutada: {query}")
+       ```
+    
+    **Attack Vector**:
+    ```bash
+    Username: admin' OR '1'='1' --
+    Password: anything
+    
+    # Results in:
+    SELECT * FROM users WHERE username = 'admin' OR '1'='1' --' AND password = 'anything'
+    # The -- comments out the rest, OR '1'='1' is always true
+    ```
+  </Tab>
+  
+  <Tab title="The Solution">
+    **Secure Code Fixes**:
+    
+    1. **Parameterized Query**: Uses placeholder (`%s`) and tuple
+       ```python
+       cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+       ```
+       - Database driver handles escaping
+       - Input treated as data, not code
+    
+    2. **Separated Password Check**: Verify hash after query
+       ```python
+       if user and check_password_hash(user['password'], password):
+       ```
+       - Constant-time comparison
+       - No SQL involved in password check
+    
+    3. **No Debug Output**: Queries not logged
+       - Prevents information disclosure
+       - Production-safe
+  </Tab>
+  
+  <Tab title="Key Differences">
+    | Aspect | Vulnerable | Secure |
+    |--------|-----------|--------|
+    | Query building | String concatenation | Parameterized |
+    | Password check | In SQL query | After query, hashed |
+    | Input handling | Direct insertion | Driver escaping |
+    | Debug info | Queries logged | Silent |
+    | Attack surface | Complete bypass | None |
+  </Tab>
+</Tabs>
+
+### Profile Lookup
+
+<CodeGroup>
+```python Vulnerable (app.py:95-102)
+user_id = request.args.get('id', session['user_id'])
+
+connection = create_connection()
+cursor = connection.cursor() 
+
+try:
+    cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+    user = cursor.fetchone()
+```
+
+```python Secure (app.py:147-170)
+requested_id = request.args.get('id', session['user_id'])
+
+# Validate input type
+try:
+    requested_id = int(requested_id)
+except ValueError:
+    flash('ID inválido', 'danger')
+    return redirect('/dashboard')
+
+# Check authorization
+if requested_id != session['user_id'] and session.get('role') != 'admin':
+    flash('No tienes permiso para ver este perfil', 'danger')
+    return redirect('/dashboard')
+
+# Safe query without password field
+query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+cursor.execute(query, (requested_id,))
+```
+</CodeGroup>
+
+<Note>
+  **Two Vulnerabilities Fixed**:
+  1. **SQL Injection** - Parameterized query
+  2. **IDOR** - Authorization check before database query
+</Note>
+
+## Cross-Site Scripting (XSS)
+
+### Dashboard Message Display
+
+<CodeGroup>
+```python Vulnerable (app.py:81-87)
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    # VULNERABLE: XSS
+    message = request.args.get('message', '')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         message=message,
+                         role=session.get('role'))
+```
+
+```python Secure (app.py:124-137)
+@app.route('/dashboard')
+def dashboard():
+    # SEGURO: Verificación de sesión
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    # SEGURO: Escape de HTML (XSS prevention)
+    message = request.args.get('message', '')
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         message=escape(message),
+                         role=session.get('role'))
+```
+</CodeGroup>
+
+### How `escape()` Works
+
+<Tabs>
+  <Tab title="Character Conversion">
+    The `markupsafe.escape()` function converts HTML special characters:
+    
+    | Input | Output | Why |
+    |-------|--------|-----|
+    | `<` | `&lt;` | Start of HTML tag |
+    | `>` | `&gt;` | End of HTML tag |
+    | `"` | `&quot;` | Attribute delimiter |
+    | `'` | `&#x27;` | Attribute delimiter |
+    | `&` | `&amp;` | Entity start |
+    
+    **Example**:
+    ```python
+    input: "<script>alert('XSS')</script>"
+    output: "&lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;"
+    ```
+    
+    Rendered as harmless text: `<script>alert('XSS')</script>`
+  </Tab>
+  
+  <Tab title="Attack Prevention">
+    **Common XSS Attacks Prevented**:
+    
+    <AccordionGroup>
+      <Accordion title="Script Injection">
+        ```html
+        Input: <script>alert(document.cookie)</script>
+        Output: &lt;script&gt;alert(document.cookie)&lt;/script&gt;
+        Result: Text displayed, script not executed
+        ```
+      </Accordion>
+      
+      <Accordion title="Event Handler Injection">
+        ```html
+        Input: <img src=x onerror="alert('XSS')">
+        Output: &lt;img src=x onerror=&quot;alert('XSS')&quot;&gt;
+        Result: No image tag created, just text
+        ```
+      </Accordion>
+      
+      <Accordion title="JavaScript Protocol">
+        ```html
+        Input: <a href="javascript:alert('XSS')">Click</a>
+        Output: &lt;a href=&quot;javascript:alert('XSS')&quot;&gt;Click&lt;/a&gt;
+        Result: No clickable link, just text
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+  
+  <Tab title="Template Comparison">
+    **Vulnerable Template**:
+    ```django
+    <div class="alert">
+      {{ message|safe }}  {# ❌ Disables escaping #}
+    </div>
+    ```
+    
+    **Secure Template**:
+    ```django
+    <div class="alert">
+      {{ message }}  {# ✅ Automatically escaped #}
+    </div>
+    ```
+    
+    <Note>
+      The `|safe` filter in Jinja2/Django tells the template engine "trust this HTML, don't escape it." This should **only** be used for content you control, never user input.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Password Storage
+
+### User Registration
+
+<CodeGroup>
+```python Vulnerable (app.py:53-66)
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']  # Plaintext
+        email = request.form['email']
+        
+        connection = create_connection()
+        cursor = connection.cursor()
+        
+        try:
+            query = "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)"
+            cursor.execute(query, (username, password, email))  # Stores plaintext
+            connection.commit()
+```
+
+```python Secure (app.py:77-108)
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        email = request.form.get('email', '').strip()
+        
+        # Input validation
+        if len(password) < 6:
+            flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+            return render_template('register.html')
+        
+        # Hash password with bcrypt
+        hashed_password = generate_password_hash(password)
+        
+        query = "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)"
+        cursor.execute(query, (username, hashed_password, email))
+```
+</CodeGroup>
+
+### Database Storage Comparison
+
+<Tabs>
+  <Tab title="Vulnerable Database">
+    **Plaintext Password Storage**:
+    
+    ```sql
+    INSERT INTO users (username, password, email) 
+    VALUES ('admin', 'admin123', 'admin@test.com')
+    ```
+    
+    **Database Contents**:
+    ```
+    id | username | password   | email
+    ---+----------+------------+------------------
+    1  | admin    | admin123   | admin@test.com
+    2  | usuario  | password123| user@test.com
+    ```
+    
+    <Warning>
+      **Risks**:
+      - Database breach exposes all passwords immediately
+      - Admins can see user passwords
+      - No protection against rainbow tables
+      - Violates GDPR and most compliance standards
+      - Users reusing passwords across sites are compromised
+    </Warning>
+  </Tab>
+  
+  <Tab title="Secure Database">
+    **Hashed Password Storage**:
+    
+    ```python
+    admin_password = generate_password_hash('admin123')
+    # Result: 'scrypt:32768:8:1$h3k2j1$abc123...'
+    
+    INSERT INTO users (username, password, email) 
+    VALUES ('admin', admin_password, 'admin@test.com')
+    ```
+    
+    **Database Contents**:
+    ```
+    id | username | password                                                      | email
+    ---+----------+---------------------------------------------------------------+------------------
+    1  | admin    | scrypt:32768:8:1$h3k2j1$f8e2a9...                           | admin@test.com
+    2  | usuario  | scrypt:32768:8:1$k9m4n2$d6c1b8...                           | user@test.com
+    ```
+    
+    <Check>
+      **Benefits**:
+      - Original password cannot be recovered
+      - Each password has unique salt (random data)
+      - Computational cost prevents brute force
+      - Industry standard (bcrypt/scrypt)
+      - Compliant with security regulations
+    </Check>
+  </Tab>
+  
+  <Tab title="Hash Anatomy">
+    **Understanding the Hash String**:
+    
+    ```
+    scrypt:32768:8:1$h3k2j1$f8e2a9b3c4d5e6...
+    ^^^^^^ ^^^^^ ^ ^ ^^^^^^ ^^^^^^^^^^^^^^^^
+      |      |   | |   |           |
+      |      |   | |   |           +-- Hash (derived key)
+      |      |   | |   +-------------- Salt (random)
+      |      |   | +------------------ Parallelization factor
+      |      |   +-------------------- Block size
+      |      +------------------------ Memory cost factor (N)
+      +------------------------------- Algorithm
+    ```
+    
+    **Parameters Explained**:
+    - **Algorithm**: `scrypt` or `pbkdf2` (secure key derivation functions)
+    - **Memory Cost** (`32768`): Makes attacks expensive
+    - **Salt** (`h3k2j1`): Random data, unique per password
+    - **Hash**: The actual derived key from password + salt
+    
+    **Same password, different hashes**:
+    ```python
+    generate_password_hash('password123')  
+    # → scrypt:32768:8:1$aBc123$...
+    
+    generate_password_hash('password123')  # Same input
+    # → scrypt:32768:8:1$xYz789$...        # Different output!
+    ```
+  </Tab>
+</Tabs>
+
+### Password Verification
+
+<CodeGroup>
+```python Vulnerable Login
+# Password checked in SQL query
+query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+cursor.execute(query)
+user = cursor.fetchone()
+
+if user:
+    # Login successful
+```
+
+```python Secure Login
+# Fetch user first
+query = "SELECT * FROM users WHERE username = %s"
+cursor.execute(query, (username,))
+user = cursor.fetchone()
+
+# Then verify password hash
+if user and check_password_hash(user['password'], password):
+    # Login successful
+```
+</CodeGroup>
+
+**How `check_password_hash()` Works**:
+
+```python
+stored_hash = "scrypt:32768:8:1$h3k2j1$f8e2a9..."
+user_input = "admin123"
+
+# Extract algorithm and salt from stored hash
+algorithm, params, salt, original_hash = parse_hash(stored_hash)
+
+# Re-hash the input with same salt and params
+new_hash = scrypt(user_input, salt, params)
+
+# Constant-time comparison (prevents timing attacks)
+return secure_compare(new_hash, original_hash)
+```
+
+## Insecure Direct Object Reference (IDOR)
+
+### Authorization Implementation
+
+<CodeGroup>
+```python Vulnerable (app.py:89-110)
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    # No authorization check!
+    user_id = request.args.get('id', session['user_id'])
+    
+    connection = create_connection()
+    cursor = connection.cursor() 
+    
+    try:
+        # SQL injection + IDOR
+        cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+        user = cursor.fetchone()
+    except sqlite3.Error as e:
+        flash(f'Error: {str(e)}', 'danger')
+        user = None
+    finally:
+        cursor.close()
+        connection.close()
+    
+    return render_template('profile.html', user=user)
+```
+
+```python Secure (app.py:139-179)
+@app.route('/profile')
+def profile():
+    # Step 1: Authentication
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión', 'warning')
+        return redirect('/login')
+    
+    requested_id = request.args.get('id', session['user_id'])
+    
+    # Step 2: Input validation
+    try:
+        requested_id = int(requested_id)
+    except ValueError:
+        flash('ID inválido', 'danger')
+        return redirect('/dashboard')
+    
+    # Step 3: Authorization check
+    if requested_id != session['user_id'] and session.get('role') != 'admin':
+        flash('No tienes permiso para ver este perfil', 'danger')
+        return redirect('/dashboard')
+    
+    connection = create_connection()
+    cursor = connection.cursor()
+    
+    # Step 4: Secure query (no password field)
+    query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+    cursor.execute(query, (requested_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        flash('Usuario no encontrado', 'danger')
+        return redirect('/dashboard')
+    
+    return render_template('profile.html', user=user)
+```
+</CodeGroup>
+
+### Authorization Logic Breakdown
+
+<Tabs>
+  <Tab title="Vulnerable Flow">
+    ```mermaid
+    graph LR
+        A[Request /profile?id=1] --> B{Logged in?}
+        B -->|Yes| C[Query database]
+        B -->|No| D[Redirect to login]
+        C --> E[Return ANY profile]
+    ```
+    
+    **Problems**:
+    - ❌ No permission check
+    - ❌ Any authenticated user can view any profile
+    - ❌ Returns password field
+    - ❌ SQL injection in ID parameter
+  </Tab>
+  
+  <Tab title="Secure Flow">
+    ```mermaid
+    graph TD
+        A[Request /profile?id=1] --> B{Logged in?}
+        B -->|No| C[Redirect to login]
+        B -->|Yes| D{Valid ID format?}
+        D -->|No| E[Error: Invalid ID]
+        D -->|Yes| F{Authorized?}
+        F -->|Own profile| G[Query database]
+        F -->|Admin role| G
+        F -->|Neither| H[Error: Forbidden]
+        G --> I{User exists?}
+        I -->|Yes| J[Return profile without password]
+        I -->|No| K[Error: Not found]
+    ```
+    
+    **Improvements**:
+    - ✅ Type validation on ID
+    - ✅ Authorization logic
+    - ✅ Role-based access (admin can view all)
+    - ✅ Password field excluded
+    - ✅ Proper error handling
+  </Tab>
+  
+  <Tab title="Access Matrix">
+    **Who Can View Whose Profile**:
+    
+    | Requester | Target Profile | Vulnerable App | Secure App |
+    |-----------|----------------|----------------|------------|
+    | User A    | User A's       | ✅ Yes         | ✅ Yes     |
+    | User A    | User B's       | ✅ Yes (**IDOR**) | ❌ No   |
+    | User A    | Admin's        | ✅ Yes (**IDOR**) | ❌ No   |
+    | Admin     | User A's       | ✅ Yes         | ✅ Yes     |
+    | Admin     | User B's       | ✅ Yes         | ✅ Yes     |
+    | Anonymous | Any            | ❌ No          | ❌ No      |
+    
+    **Secure App Logic**:
+    ```python
+    # Can view if:
+    # 1. It's your own profile, OR
+    # 2. You're an admin
+    can_view = (requested_id == session['user_id']) or (session['role'] == 'admin')
+    ```
+  </Tab>
+</Tabs>
+
+### Data Minimization
+
+<CodeGroup>
+```sql Vulnerable Query
+SELECT * FROM users WHERE id = 1
+-- Returns: id, username, password, email, role, created_at
+-- ❌ Password field exposed!
+```
+
+```sql Secure Query
+SELECT id, username, email, role, created_at FROM users WHERE id = 1
+-- Returns: id, username, email, role, created_at
+-- ✅ Password field excluded
+```
+</CodeGroup>
+
+<Note>
+  **Principle of Least Privilege**: Only query and return the data actually needed. Even with hashed passwords, there's no reason to send them to the frontend.
+</Note>
+
+## Security Headers
+
+### No Headers vs Complete Headers
+
+<CodeGroup>
+```python Vulnerable App
+from flask import Flask
+
+app = Flask(__name__)
+app.secret_key = 'clave_super_secreta_123'
+
+# No security headers configured ❌
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+```
+
+```python Secure App
+from flask import Flask
+
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY')
+
+# Security headers middleware ✅
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+```
+</CodeGroup>
+
+### Header-by-Header Comparison
+
+<Tabs>
+  <Tab title="X-Content-Type-Options">
+    **Purpose**: Prevent MIME type sniffing
+    
+    **Without Header**:
+    ```http
+    HTTP/1.1 200 OK
+    Content-Type: text/html
+    ```
+    
+    Browser might interpret `text/html` file as `text/javascript` if it contains code.
+    
+    **With Header**:
+    ```http
+    HTTP/1.1 200 OK
+    Content-Type: text/html
+    X-Content-Type-Options: nosniff
+    ```
+    
+    Browser strictly follows declared `Content-Type`.
+    
+    <Check>
+      **Attack Prevented**: MIME confusion attacks where attackers upload malicious files disguised as safe types
+    </Check>
+  </Tab>
+  
+  <Tab title="X-Frame-Options">
+    **Purpose**: Prevent clickjacking attacks
+    
+    **Without Header**:
+    ```html
+    <!-- Attacker's site -->
+    <iframe src="https://your-app.com/dashboard">
+    <!-- Your app loads inside attacker's page -->
+    ```
+    
+    **With Header**:
+    ```http
+    X-Frame-Options: DENY
+    ```
+    
+    Browser refuses to load your site in any iframe.
+    
+    **Options**:
+    - `DENY` - Never allow framing
+    - `SAMEORIGIN` - Only allow same-domain framing
+    
+    <Check>
+      **Attack Prevented**: Clickjacking, where attackers overlay invisible iframes to trick users into clicking malicious links
+    </Check>
+  </Tab>
+  
+  <Tab title="Content-Security-Policy">
+    **Purpose**: Control what resources can load
+    
+    **Without Header**:
+    ```html
+    <!-- Any script can run -->
+    <script src="http://evil.com/malware.js"></script>  <!-- ✅ Loads -->
+    <script>eval(userInput)</script>  <!-- ✅ Runs -->
+    ```
+    
+    **With Header**:
+    ```http
+    Content-Security-Policy: default-src 'self'
+    ```
+    
+    ```html
+    <script src="http://evil.com/malware.js"></script>  <!-- ❌ Blocked -->
+    <script src="/static/app.js"></script>  <!-- ✅ Allowed (same origin) -->
+    ```
+    
+    **Common Directives**:
+    - `default-src 'self'` - Only load from same origin
+    - `script-src 'self'` - Scripts only from same origin
+    - `style-src 'self' 'unsafe-inline'` - Styles from same origin + inline
+    
+    <Check>
+      **Attack Prevented**: XSS exploitation, malicious script injection, data exfiltration to external domains
+    </Check>
+  </Tab>
+  
+  <Tab title="Strict-Transport-Security">
+    **Purpose**: Force HTTPS connections
+    
+    **Without Header**:
+    ```
+    User types: http://your-app.com
+    → Loads over HTTP (unencrypted)
+    → Man-in-the-middle can intercept
+    ```
+    
+    **With Header**:
+    ```http
+    Strict-Transport-Security: max-age=31536000; includeSubDomains
+    ```
+    
+    After first HTTPS visit:
+    ```
+    User types: http://your-app.com
+    → Browser automatically changes to https://
+    → For next 31536000 seconds (1 year)
+    → Includes all subdomains
+    ```
+    
+    <Check>
+      **Attack Prevented**: SSL stripping, man-in-the-middle attacks, protocol downgrade attacks
+    </Check>
+  </Tab>
+</Tabs>
+
+## Configuration & Secrets Management
+
+### Secret Key Comparison
+
+<CodeGroup>
+```python Vulnerable (app.py:6)
+app.secret_key = 'clave_super_secreta_123'
+```
+
+```python Secure (app.py:10-13)
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+app.secret_key = os.getenv('SECRET_KEY')
+```
+</CodeGroup>
+
+### Environment Variable Setup
+
+<Tabs>
+  <Tab title="Vulnerable Approach">
+    **Hardcoded in Source**:
+    ```python
+    # app.py (committed to git)
+    app.secret_key = 'clave_super_secreta_123'
+    DATABASE_URL = 'postgresql://admin:password@localhost/db'
+    API_KEY = 'sk_live_abc123xyz789'
+    ```
+    
+    **Problems**:
+    - ❌ Visible in version control history forever
+    - ❌ Same secrets in dev/staging/production
+    - ❌ Developers can see production secrets
+    - ❌ Leaked if repository becomes public
+    - ❌ No rotation without code changes
+  </Tab>
+  
+  <Tab title="Secure Approach">
+    **Environment Variables**:
+    
+    ```bash
+    # .env (NOT committed to git)
+    SECRET_KEY=a1b2c3d4e5f6...  # Generated randomly
+    DATABASE_URL=postgresql://...
+    API_KEY=sk_live_...
+    ```
+    
+    ```python
+    # app.py (committed to git)
+    from dotenv import load_dotenv
+    import os
+    
+    load_dotenv()
+    app.secret_key = os.getenv('SECRET_KEY')
+    database_url = os.getenv('DATABASE_URL')
+    api_key = os.getenv('API_KEY')
+    ```
+    
+    ```gitignore
+    # .gitignore (committed to git)
+    .env
+    .env.local
+    .env.*.local
+    ```
+    
+    **Benefits**:
+    - ✅ Secrets never in version control
+    - ✅ Different values per environment
+    - ✅ Easy rotation (change file, restart)
+    - ✅ Follows 12-factor app principles
+    - ✅ Compatible with deployment platforms
+  </Tab>
+  
+  <Tab title="Generate Secrets">
+    **Creating Secure Random Keys**:
+    
+    ```python
+    # Method 1: Python secrets module
+    import secrets
+    print(secrets.token_hex(32))
+    # Output: 'a1b2c3d4e5f6...64_hexadecimal_characters'
+    
+    # Method 2: OpenSSL
+    # openssl rand -hex 32
+    
+    # Method 3: Python random (dev only)
+    import os
+    print(os.urandom(32).hex())
+    ```
+    
+    **Example .env file**:
+    ```bash
+    # Flask configuration
+    SECRET_KEY=a8f2e9c6b1d4f7e3a2c8b5d9f1e4a7b3c6d2f8e5a1b7c4d9f2e6a3b8c5d1f4e7
+    FLASK_ENV=production
+    
+    # Database
+    DATABASE_URL=sqlite:///./users.db
+    
+    # Security settings
+    SESSION_COOKIE_SECURE=True
+    SESSION_COOKIE_HTTPONLY=True
+    SESSION_COOKIE_SAMESITE=Lax
+    
+    # CSRF
+    WTF_CSRF_ENABLED=True
+    WTF_CSRF_TIME_LIMIT=3600
+    ```
+  </Tab>
+</Tabs>
+
+## Input Validation
+
+### Registration Form Validation
+
+<CodeGroup>
+```python Vulnerable (app.py:53-56)
+username = request.form['username']  # No validation
+password = request.form['password']  # No validation
+email = request.form['email']       # No validation
+
+# Directly inserted into database
+cursor.execute(query, (username, password, email))
+```
+
+```python Secure (app.py:78-93)
+username = request.form.get('username', '').strip()
+password = request.form.get('password', '')
+email = request.form.get('email', '').strip()
+
+# Comprehensive validation
+if not username or not password or not email:
+    flash('Todos los campos son requeridos', 'danger')
+    return render_template('register.html')
+
+if len(username) < 3 or len(username) > 50:
+    flash('El usuario debe tener entre 3 y 50 caracteres', 'danger')
+    return render_template('register.html')
+
+if len(password) < 6:
+    flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+    return render_template('register.html')
+```
+</CodeGroup>
+
+### Validation Checklist
+
+<AccordionGroup>
+  <Accordion title="Presence Validation" icon="check">
+    **Check if fields exist and are not empty**:
+    
+    ```python
+    # Bad - KeyError if field missing
+    username = request.form['username']
+    
+    # Good - Returns empty string if missing
+    username = request.form.get('username', '')
+    
+    # Best - Also checks for empty
+    username = request.form.get('username', '').strip()
+    if not username:
+        return error('Username is required')
+    ```
+  </Accordion>
+  
+  <Accordion title="Length Validation" icon="ruler">
+    **Enforce minimum and maximum lengths**:
+    
+    ```python
+    if len(username) < 3:
+        return error('Username too short')
+    
+    if len(username) > 50:
+        return error('Username too long')
+    
+    # Or combined:
+    if not (3 <= len(username) <= 50):
+        return error('Username must be 3-50 characters')
+    ```
+    
+    **Why length limits matter**:
+    - Prevent database overflow
+    - Limit resource consumption
+    - Block certain attack patterns
+  </Accordion>
+  
+  <Accordion title="Type Validation" icon="hashtag">
+    **Ensure correct data types**:
+    
+    ```python
+    # Validate integer
+    user_id = request.args.get('id')
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
+        return error('Invalid ID format')
+    
+    # Validate email format
+    import re
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email):
+        return error('Invalid email format')
+    ```
+  </Accordion>
+  
+  <Accordion title="Whitespace Handling" icon="space-between-vertically">
+    **Trim whitespace to prevent issues**:
+    
+    ```python
+    # Without strip()
+    username = '  admin  '
+    # Stored as '  admin  ' (different from 'admin')
+    # Can bypass duplicate checks
+    
+    # With strip()
+    username = request.form.get('username', '').strip()
+    # Stored as 'admin' (normalized)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Summary Table: All Vulnerabilities
+
+| Vulnerability | Vulnerable Code | Secure Code | Impact |
+|---------------|----------------|-------------|--------|
+| **SQL Injection** | `f"SELECT * FROM users WHERE id = {id}"` | `cursor.execute("SELECT * FROM users WHERE id = %s", (id,))` | Critical - Full database compromise |
+| **XSS** | `{{ message\|safe }}` | `{{ escape(message) }}` | High - Account takeover, data theft |
+| **IDOR** | No authorization check | `if id != session['user_id'] and role != 'admin': abort(403)` | High - Unauthorized data access |
+| **Plaintext Passwords** | `password = 'admin123'` | `password = generate_password_hash('admin123')` | Critical - Mass password breach |
+| **Hardcoded Secrets** | `app.secret_key = 'secret'` | `app.secret_key = os.getenv('SECRET_KEY')` | High - Session compromise |
+| **Missing CSRF** | No protection | `csrf = CSRFProtect(app)` | Medium - Forced actions |
+| **No Security Headers** | No headers | `@app.after_request` middleware | Medium - Multiple attack vectors |
+| **Poor Input Validation** | `request.form['username']` | `request.form.get('username', '').strip()` + validation | Medium - Data integrity, DoS |
+
+## Testing Guide
+
+<Steps>
+  <Step title="Deploy Both Applications">
+    ```bash
+    # Terminal 1: Vulnerable app
+    cd vulnerable
+    python app.py  # Runs on port 5000
+    
+    # Terminal 2: Secure app
+    cd secure
+    python app.py  # Runs on port 5001
+    ```
+  </Step>
+  
+  <Step title="Test SQL Injection">
+    **Vulnerable (port 5000)**:
+    - Username: `admin' OR '1'='1' --`
+    - Password: `anything`
+    - Result: ✅ Logged in (bypassed authentication)
+    
+    **Secure (port 5001)**:
+    - Username: `admin' OR '1'='1' --`
+    - Password: `anything`
+    - Result: ❌ "Credenciales incorrectas"
+  </Step>
+  
+  <Step title="Test XSS">
+    **Vulnerable (port 5000)**:
+    ```
+    http://localhost:5000/dashboard?message=<script>alert('XSS')</script>
+    ```
+    - Result: ⚠️ Alert popup (JavaScript executed)
+    
+    **Secure (port 5001)**:
+    ```
+    http://localhost:5001/dashboard?message=<script>alert('XSS')</script>
+    ```
+    - Result: ✅ Text displayed: `<script>alert('XSS')</script>`
+  </Step>
+  
+  <Step title="Test IDOR">
+    Log in as regular user, then:
+    
+    **Vulnerable (port 5000)**:
+    ```
+    http://localhost:5000/profile?id=1
+    ```
+    - Result: ✅ Shows admin profile with password
+    
+    **Secure (port 5001)**:
+    ```
+    http://localhost:5001/profile?id=1
+    ```
+    - Result: ❌ "No tienes permiso para ver este perfil"
+  </Step>
+  
+  <Step title="Inspect Database">
+    ```bash
+    # Vulnerable database
+    sqlite3 vulnerable/users.db "SELECT * FROM users"
+    # Shows plaintext passwords
+    
+    # Secure database
+    sqlite3 secure/users.db "SELECT * FROM users"
+    # Shows hashed passwords (scrypt:...)
+    ```
+  </Step>
+</Steps>
+
+<Check>
+  All security improvements are demonstrated through working code. Run both applications side-by-side to see the difference in behavior.
+</Check>
