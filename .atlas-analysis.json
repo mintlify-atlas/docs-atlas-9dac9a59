@@ -1,0 +1,100 @@
+{
+  "projectType": "general",
+  "projectName": "Auth Security Demo",
+  "projectDescription": "Educational web security demonstration project showcasing common vulnerabilities and their secure implementations in Flask applications.",
+  "theme": "aspen",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "legal-notice",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Vulnerabilities",
+            "pages": [
+              "vulnerabilities/sql-injection",
+              "vulnerabilities/xss",
+              "vulnerabilities/idor",
+              "vulnerabilities/password-storage",
+              "vulnerabilities/session-management",
+              "vulnerabilities/csrf",
+              "vulnerabilities/security-misconfiguration",
+              "vulnerabilities/sensitive-data-exposure"
+            ]
+          },
+          {
+            "group": "Security Best Practices",
+            "pages": [
+              "security/secure-authentication",
+              "security/input-validation",
+              "security/output-encoding",
+              "security/access-control",
+              "security/security-headers",
+              "security/secure-configuration"
+            ]
+          },
+          {
+            "group": "Lab Setup",
+            "pages": [
+              "setup/installation",
+              "setup/running-demos",
+              "setup/testing-vulnerabilities",
+              "setup/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Code Reference",
+            "pages": [
+              "reference/vulnerable-code",
+              "reference/secure-code",
+              "reference/code-comparison"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "reference/owasp-top-10",
+              "reference/cwe-references",
+              "reference/further-reading"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Side-by-side vulnerable and secure Flask application implementations",
+    "SQL Injection demonstration with authentication bypass",
+    "Cross-Site Scripting (XSS) vulnerability examples",
+    "Insecure Direct Object Reference (IDOR) exploitation",
+    "Password storage comparison (plaintext vs bcrypt hashing)",
+    "Session management security demonstrations",
+    "CSRF protection implementation",
+    "Security headers configuration"
+  ],
+  "publicApiSurface": [
+    "Flask web application with authentication system",
+    "User registration and login endpoints",
+    "Dashboard and profile management routes",
+    "SQLite database with user management",
+    "Vulnerable implementation: /vulnerable/app.py",
+    "Secure implementation: /secure/app.py",
+    "Database setup scripts: database.py",
+    "Security utilities: password hashing, CSRF protection"
+  ]
+}
